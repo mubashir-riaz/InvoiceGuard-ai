@@ -1,0 +1,4 @@
+# Python packages for the ARQ worker
+arq==0.26.0
+redis==4.6.0
+asyncpg==0.29.0   # needed for DB interactions in later phases

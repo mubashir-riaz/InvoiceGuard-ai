@@ -1,0 +1,44 @@
+# Environment & Secrets
+.env
+*.env.local
+*.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/build/
+*.log
+npm-debug.log*
+
+# Docker
+docker-compose.override.yml
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Databases & Data
+*.db
+*.sqlite3
+pgdata/
+
+# Alembic (Phase 1+)
+# Keep alembic.ini but ignore generated migration versions if preferred
+# backend/alembic/versions/*.py
