@@ -1,4 +1,3 @@
-# backend/app/api/invoices.py
 # Invoice CRUD + file upload endpoint.
 import os
 import shutil
@@ -10,8 +9,10 @@ from datetime import date
 from app.core.database import get_db
 from app.models.invoice import Invoice, InvoiceStatus
 from app.schemas.invoice import InvoiceCreate, InvoiceResponse
+from app.services.queue import enqueue_task
+from app.core.config import settings  
 
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = settings.UPLOAD_DIR
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -70,3 +71,23 @@ async def delete_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(invoice)
     await db.commit()
     return None
+
+@router.post("/{invoice_id}/process", status_code=202)
+async def process_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Trigger asynchronous extraction of line items from the uploaded PDF.
+    The worker will update the invoice status and create line items.
+    """
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if invoice.status != InvoiceStatus.UPLOADED:
+        raise HTTPException(status_code=400, detail="Invoice already processed or in progress")
+
+    # Mark as processing immediately
+    invoice.status = InvoiceStatus.PROCESSING
+    await db.commit()
+
+    # Enqueue the extraction task
+    await enqueue_task("extract_invoice_lines", invoice.id)
+    return {"message": "Processing started", "invoice_id": invoice_id}

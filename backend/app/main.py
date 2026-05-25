@@ -1,4 +1,3 @@
-# backend/app/main.py
 # FastAPI application factory – includes all API routers.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
