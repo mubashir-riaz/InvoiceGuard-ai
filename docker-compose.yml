@@ -1,5 +1,3 @@
-# docker-compose.yml
-# Phase 2: added uploads volume, UPLOAD_DIR env, OPENAI_API_KEY for worker.
 version: "3.9"
 
 services:
@@ -32,7 +30,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://user:pass@db:5432/invoiceguard_ai
       REDIS_URL: redis://redis:6379/0
-      PROJECT_NAME: invoiceguard-ai
+      PROJECT_NAME: invoiceguard_ai
       UPLOAD_DIR: /app/uploads
     depends_on:
       - db
@@ -42,7 +40,7 @@ services:
     build:
       context: ./worker
       dockerfile: Dockerfile
-    command: arq worker_app.main.WorkerSettings --watch
+    command: arq main.WorkerSettings
     volumes:
       - ./worker/tasks:/app/tasks # hot reload
       - uploads_data:/app/uploads # share PDFs

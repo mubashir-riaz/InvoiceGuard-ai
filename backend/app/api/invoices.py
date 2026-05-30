@@ -91,3 +91,20 @@ async def process_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     # Enqueue the extraction task
     await enqueue_task("extract_invoice_lines", invoice.id)
     return {"message": "Processing started", "invoice_id": invoice_id}
+
+from app.services.queue import enqueue_task
+
+@router.post("/{invoice_id}/audit", status_code=202)
+async def audit_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Trigger audit (matching + discrepancy detection) for an extracted invoice.
+    """
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if invoice.status != InvoiceStatus.EXTRACTED:
+        raise HTTPException(status_code=400, detail="Invoice must be in 'extracted' status before audit")
+
+    # Enqueue the matching task
+    await enqueue_task("match_and_audit", invoice_id)
+    return {"message": "Audit started", "invoice_id": invoice_id}

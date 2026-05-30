@@ -5,14 +5,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy entire backend context (app/, alembic/, entrypoint.sh)
 COPY . .
 
-# Make entrypoint executable
+ENV PYTHONPATH=/app
+
 RUN chmod +x entrypoint.sh
 
 EXPOSE 8000

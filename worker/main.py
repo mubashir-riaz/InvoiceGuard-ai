@@ -1,10 +1,9 @@
 # worker/main.py
 from arq.connections import RedisSettings
-from worker.config import REDIS_URL
-from worker.tasks.extraction import extract_invoice_lines  # import the new task
-
-# Remove the old sample_task import if present.
+from config import REDIS_URL
+from tasks.extraction import extract_invoice_lines
+from tasks.matching import match_and_audit
 
 class WorkerSettings:
-    functions = [extract_invoice_lines]
+    functions = [extract_invoice_lines, match_and_audit]
     redis_settings = RedisSettings.from_dsn(REDIS_URL)

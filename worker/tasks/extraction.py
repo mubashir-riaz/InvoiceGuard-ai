@@ -7,9 +7,9 @@ import base64
 from io import BytesIO
 from pdf2image import convert_from_path
 from sqlalchemy import select
-from worker.db import get_session
-from worker.models import Invoice, InvoiceStatus, LineItem
-from worker.config import LLM_PROVIDER, GROQ_API_KEY, GEMINI_API_KEY, UPLOAD_DIR
+from db import get_session
+from models import Invoice, InvoiceStatus, LineItem
+from config import LLM_PROVIDER, GROQ_API_KEY, GEMINI_API_KEY, UPLOAD_DIR
 
 # 1. LLM Client Abstraction
 

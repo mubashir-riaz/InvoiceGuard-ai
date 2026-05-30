@@ -1,4 +1,4 @@
-"""initial tables
+"""initial tables with BigInteger IDs
 
 Revision ID: 001
 Revises:
@@ -16,14 +16,14 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.create_table(
         "clients",
-        sa.Column("id", sa.Integer(), primary_key=True, index=True),
+        sa.Column("id", sa.BigInteger(), primary_key=True, index=True),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("email", sa.String(255), unique=True, nullable=False),
     )
     op.create_table(
         "contracts",
-        sa.Column("id", sa.Integer(), primary_key=True, index=True),
-        sa.Column("client_id", sa.Integer(), sa.ForeignKey("clients.id"), nullable=False),
+        sa.Column("id", sa.BigInteger(), primary_key=True, index=True),
+        sa.Column("client_id", sa.BigInteger(), sa.ForeignKey("clients.id"), nullable=False),
         sa.Column("carrier", sa.String(100), nullable=False),
         sa.Column("rate_details", sa.JSON(), nullable=False),
         sa.Column("effective_start", sa.Date(), nullable=False),
@@ -31,9 +31,9 @@ def upgrade() -> None:
     )
     op.create_table(
         "invoices",
-        sa.Column("id", sa.Integer(), primary_key=True, index=True),
-        sa.Column("client_id", sa.Integer(), sa.ForeignKey("clients.id"), nullable=False),
-        sa.Column("contract_id", sa.Integer(), sa.ForeignKey("contracts.id"), nullable=True),
+        sa.Column("id", sa.BigInteger(), primary_key=True, index=True),
+        sa.Column("client_id", sa.BigInteger(), sa.ForeignKey("clients.id"), nullable=False),
+        sa.Column("contract_id", sa.BigInteger(), sa.ForeignKey("contracts.id"), nullable=True),
         sa.Column("invoice_number", sa.String(100), nullable=False, unique=True),
         sa.Column("carrier", sa.String(100), nullable=False),
         sa.Column("invoice_date", sa.Date(), nullable=False),
@@ -43,8 +43,8 @@ def upgrade() -> None:
     )
     op.create_table(
         "line_items",
-        sa.Column("id", sa.Integer(), primary_key=True, index=True),
-        sa.Column("invoice_id", sa.Integer(), sa.ForeignKey("invoices.id"), nullable=False),
+        sa.Column("id", sa.BigInteger(), primary_key=True, index=True),
+        sa.Column("invoice_id", sa.BigInteger(), sa.ForeignKey("invoices.id"), nullable=False),
         sa.Column("tracking_number", sa.String(100), nullable=True),
         sa.Column("description", sa.String(500), nullable=True),
         sa.Column("weight_kg", sa.Float(), nullable=True),
