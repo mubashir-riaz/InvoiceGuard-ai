@@ -38,7 +38,10 @@ def upgrade() -> None:
         sa.Column("carrier", sa.String(100), nullable=False),
         sa.Column("invoice_date", sa.Date(), nullable=False),
         sa.Column("total_amount", sa.Float(), nullable=False),
-        sa.Column("status", sa.Enum("uploaded","processing","extracted","audited","disputed","error", name="invoicestatus"), server_default="uploaded", nullable=False),
+        sa.Column("status", sa.Enum(
+            "UPLOADED", "PROCESSING", "EXTRACTED", "AUDITED", "DISPUTED", "ERROR",
+            name="invoicestatus"
+        ), server_default="UPLOADED", nullable=False),
         sa.Column("file_path", sa.String(500), nullable=True),
     )
     op.create_table(
