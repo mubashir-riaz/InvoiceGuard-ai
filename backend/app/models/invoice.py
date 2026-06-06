@@ -6,12 +6,12 @@ import enum
 from app.models.base import Base
 
 class InvoiceStatus(str, enum.Enum):
-    UPLOADED = "uploaded"
-    PROCESSING = "processing"
-    EXTRACTED = "extracted"
-    AUDITED = "audited"
-    DISPUTED = "disputed"
-    ERROR = "error"
+    UPLOADED = "UPLOADED"
+    PROCESSING = "PROCESSING"
+    EXTRACTED = "EXTRACTED"
+    AUDITED = "AUDITED"
+    DISPUTED = "DISPUTED"
+    ERROR = "ERROR"
 
 class Invoice(Base):
     __tablename__ = "invoices"
