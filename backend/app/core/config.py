@@ -1,6 +1,7 @@
 # Application configuration, loaded from environment variables.
+# Application configuration, loaded from environment variables.
 from pydantic_settings import BaseSettings
-
+from pydantic import ConfigDict  # Add this import
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "invoiceguard_ai"
@@ -15,9 +16,10 @@ class Settings(BaseSettings):
 
     UPLOAD_DIR: str = "uploads" 
 
-    class Config:
-        env_file = ".env"
-
+    model_config = ConfigDict(  # Change from class Config to model_config
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 settings = Settings()
-
