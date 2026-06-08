@@ -5,3 +5,8 @@ asyncpg==0.29.0
 sqlalchemy[asyncio]==2.0.27
 alembic==1.13.1
 pydantic-settings==2.1.0
+pydantic[email]==2.5.0
+python-multipart==0.0.9       # for file uploads
+aiofiles==23.2.1              # async file writing
+arq==0.26.0             # to enqueue background tasks
+redis==4.6.0            # needed by arq
