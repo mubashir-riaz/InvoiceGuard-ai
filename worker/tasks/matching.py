@@ -43,7 +43,7 @@ async def match_and_audit(ctx, invoice_id: int):
             await db.commit()
             return {"status": "no_contract", "message": "Invoice has no linked contract"}
 
-        rate_details = contract.rate_details_dict   # Parse JSON to dict
+        rate_details = contract.rate_details  
 
         # 3. Load line items (relationship eager loaded would be better, but we can query)
         line_items = await db.execute(

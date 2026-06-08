@@ -1,7 +1,7 @@
 # Duplicated ORM models for Invoice and LineItem (same structure as backend).
 # This allows the worker to read/write without importing the backend package.
 import json
-from sqlalchemy import BigInteger, Column, Integer, String, Date, Float, ForeignKey, Enum
+from sqlalchemy import BigInteger, Column, Integer, String, Date, Float, ForeignKey, Enum, JSON
 from sqlalchemy.orm import relationship, declarative_base
 import enum
 
@@ -17,18 +17,13 @@ class InvoiceStatus(str, enum.Enum):
 
 class Contract(Base):
     __tablename__ = "contracts"
-    
+
     id = Column(BigInteger, primary_key=True, index=True)
-    client_id = Column(BigInteger, nullable=False)
-    contract_number = Column(String(100), nullable=False, unique=True)
-    rate_details = Column(String, nullable=True)
-    
-    @property
-    def rate_details_dict(self):
-        """Parse JSON string to dict"""
-        if self.rate_details:
-            return json.loads(self.rate_details)
-        return {"base_rate": 0.0, "per_kg": 0.0}
+    client_id = Column(BigInteger, ForeignKey("clients.id"), nullable=False)
+    carrier = Column(String(100), nullable=False)
+    rate_details = Column(JSON, nullable=False)
+    effective_start = Column(Date, nullable=False)
+    effective_end = Column(Date, nullable=False)
     
 class Invoice(Base):
     __tablename__ = "invoices"
