@@ -30,3 +30,4 @@ class Invoice(Base):
     contract = relationship("Contract", back_populates="invoices")
     line_items = relationship("LineItem", back_populates="invoice")
     discrepancies = relationship("Discrepancy", back_populates="invoice")
+    disputes = relationship("Dispute", back_populates="invoice")
