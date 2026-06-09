@@ -1,4 +1,3 @@
-# backend/app/core/database.py
 # Creates async SQLAlchemy engine and provides a FastAPI dependency
 # that yields a database session per request.
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession

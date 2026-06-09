@@ -1,4 +1,3 @@
-# backend/Dockerfile
 # Builds the FastAPI service image.
 # Runs the entrypoint script that applies migrations then starts Uvicorn.
 FROM python:3.11-slim

@@ -1,4 +1,3 @@
-# backend/app/api/clients.py
 # CRUD endpoints for Clients.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession

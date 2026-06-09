@@ -1,4 +1,3 @@
-# backend/app/models/discrepancy.py
 # Records an overcharge or undercharge detected during audit.
 from sqlalchemy import BigInteger, Column, Float, String, ForeignKey
 from sqlalchemy.orm import relationship

@@ -1,4 +1,3 @@
-# backend/alembic/env.py
 # Async Alembic environment – connects to the database and runs migrations.
 import asyncio
 from logging.config import fileConfig

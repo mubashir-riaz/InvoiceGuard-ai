@@ -1,4 +1,3 @@
-# backend/app/models/dispute.py
 # Stores generated dispute emails for overcharged invoices.
 from sqlalchemy import BigInteger, Column, String, ForeignKey, Enum, Text
 from sqlalchemy.orm import relationship

@@ -1,4 +1,3 @@
-# backend/app/models/contract.py
 # Stores the agreed freight contract with rate details (carrier, effective dates, JSON rates).
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, JSON
 from sqlalchemy.orm import relationship

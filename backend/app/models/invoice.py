@@ -1,4 +1,3 @@
-# backend/app/models/invoice.py
 # Represents an uploaded freight invoice PDF and its processing status.
 from sqlalchemy import BigInteger, Column, String, Date, Float, ForeignKey, Enum
 from sqlalchemy.orm import relationship

@@ -108,3 +108,19 @@ async def audit_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     # Enqueue the matching task
     await enqueue_task("match_and_audit", invoice_id)
     return {"message": "Audit started", "invoice_id": invoice_id}
+
+from app.services.queue import enqueue_task
+
+@router.post("/{invoice_id}/generate-dispute", status_code=202)
+async def generate_dispute(invoice_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Trigger dispute email generation for all discrepancies of this invoice.
+    """
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if invoice.status != InvoiceStatus.AUDITED:
+        raise HTTPException(status_code=400, detail="Invoice must be audited first")
+
+    await enqueue_task("generate_dispute", invoice_id)
+    return {"message": "Dispute generation started", "invoice_id": invoice_id}

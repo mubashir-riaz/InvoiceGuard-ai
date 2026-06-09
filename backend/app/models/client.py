@@ -1,4 +1,3 @@
-# backend/app/models/client.py
 # SQLAlchemy ORM model for a shipping client (e.g., an e‑commerce brand).
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship

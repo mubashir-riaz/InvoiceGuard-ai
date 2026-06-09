@@ -1,4 +1,3 @@
-# backend/app/api/discrepancies.py
 # Endpoints to list discrepancies, optionally filtered by invoice.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
