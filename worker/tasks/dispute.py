@@ -1,19 +1,17 @@
-# worker/tasks/dispute.py
 # Background task: generate a professional dispute email using LangChain + Groq.
 from sqlalchemy import select
-from worker.db import get_session
-from worker.models import Invoice, Discrepancy, Dispute, DisputeStatus, Contract
-from worker.config import GROQ_API_KEY
+from db import get_session
+from models import Invoice, Discrepancy, Dispute, DisputeStatus, Contract
+from config import GROQ_API_KEY
 
-# LangChain with Groq (OpenAI-compatible endpoint)
 from langchain_groq import ChatGroq
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from langchain_core.prompts import PromptTemplate
+from sqlalchemy.orm import selectinload
 
 # Initialize Groq LLM via LangChain
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
-    model_name="llama-3.3-70b-versatile",  # fast and capable
+    model_name="llama-3.3-70b-versatile",
     temperature=0.2,
 )
 
@@ -40,6 +38,9 @@ Use a formal tone. Do NOT include any placeholder text. The email should be read
 """
 )
 
+chain = dispute_prompt | llm
+
+
 async def generate_dispute(ctx, invoice_id: int):
     """
     1. Fetch invoice + its discrepancies + contract.
@@ -56,11 +57,11 @@ async def generate_dispute(ctx, invoice_id: int):
 
         # Fetch discrepancies for this invoice
         result = await db.execute(
-            select(Discrepancy).where(Discrepancy.invoice_id == invoice.id)
+            select(Discrepancy)
+            .options(selectinload(Discrepancy.line_item))
+            .where(Discrepancy.invoice_id == invoice.id)
         )
         discrepancies = result.scalars().all()
-        if not discrepancies:
-            return {"status": "no_discrepancies"}
 
         # Fetch contract (if any)
         contract = None
@@ -72,8 +73,9 @@ async def generate_dispute(ctx, invoice_id: int):
         lines = []
         total_diff = 0.0
         for d in discrepancies:
+            tracking = d.line_item.tracking_number if d.line_item else 'N/A'
             lines.append(
-                f"Tracking: {d.line_item.tracking_number if d.line_item else 'N/A'}, "
+                f"Tracking: {tracking}, "
                 f"Expected: ${d.expected_amount:.2f}, Charged: ${d.charged_amount:.2f}, "
                 f"Difference: ${d.difference:.2f} ({d.reason})"
             )
@@ -81,15 +83,15 @@ async def generate_dispute(ctx, invoice_id: int):
         discrepancies_text = "\n".join(lines)
         discrepancies_text += f"\nTotal overcharge: ${total_diff:.2f}"
 
-        # Generate email via LangChain
-        chain = LLMChain(llm=llm, prompt=dispute_prompt)
-        email_body = await chain.arun(
-            carrier=invoice.carrier,
-            invoice_number=invoice.invoice_number,
-            invoice_date=str(invoice.invoice_date),
-            discrepancies_text=discrepancies_text,
-            contract_rates=str(contract_rates)
-        )
+        # Generate email via LangChain (v1 pipe syntax)
+        response = await chain.ainvoke({
+            "carrier": invoice.carrier,
+            "invoice_number": invoice.invoice_number,
+            "invoice_date": str(invoice.invoice_date),
+            "discrepancies_text": discrepancies_text,
+            "contract_rates": str(contract_rates)
+        })
+        email_body = response.content
 
         # Save dispute
         dispute = Dispute(

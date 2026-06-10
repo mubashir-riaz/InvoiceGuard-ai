@@ -29,17 +29,18 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    client_id = Column(Integer, nullable=False)
-    contract_id = Column(Integer, nullable=True)
+    client_id = Column(BigInteger, nullable=False)
+    contract_id = Column(BigInteger, nullable=True)
     invoice_number = Column(String(100), nullable=False, unique=True)
     carrier = Column(String(100), nullable=False)
     invoice_date = Column(Date, nullable=False)
     total_amount = Column(Float, nullable=False)
     status = Column(Enum(InvoiceStatus), default=InvoiceStatus.UPLOADED)
     file_path = Column(String(500), nullable=True)
-    discrepancies = relationship("Discrepancy", back_populates="invoice")
-    line_items = relationship("LineItem", back_populates="invoice")
 
+    line_items = relationship("LineItem", back_populates="invoice")
+    discrepancies = relationship("Discrepancy", back_populates="invoice")
+    disputes = relationship("Dispute", back_populates="invoice")  
 class LineItem(Base):
     __tablename__ = "line_items"
 
