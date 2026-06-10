@@ -1,4 +1,3 @@
-// frontend/src/App.tsx
 // Root component – now fetches the API health endpoint to verify connectivity.
 import { useEffect, useState } from "react";
 import api from "./services/api";

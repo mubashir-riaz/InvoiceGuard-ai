@@ -1,5 +1,4 @@
-// frontend/src/services/api.ts
-// Axios instance pre-configured to call the backend API.
+// Axios instance pre-configured for the backend API.
 import axios from "axios";
 
 const api = axios.create({
