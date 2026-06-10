@@ -1,4 +1,3 @@
-# backend/app/models/line_item.py
 # A single chargeable line from an invoice (tracking number, weight, charge, etc.).
 from sqlalchemy import BigInteger, Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship

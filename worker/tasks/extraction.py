@@ -1,4 +1,3 @@
-# worker/tasks/extraction.py
 # Core background task: extract line items from an invoice PDF using a Vision LLM.
 # Supports multiple LLM providers (Groq and Gemini) selectable via LLM_PROVIDER env var.
 import json

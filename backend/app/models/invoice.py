@@ -1,4 +1,3 @@
-# backend/app/models/invoice.py
 # Represents an uploaded freight invoice PDF and its processing status.
 from sqlalchemy import BigInteger, Column, String, Date, Float, ForeignKey, Enum
 from sqlalchemy.orm import relationship
@@ -30,3 +29,4 @@ class Invoice(Base):
     contract = relationship("Contract", back_populates="invoices")
     line_items = relationship("LineItem", back_populates="invoice")
     discrepancies = relationship("Discrepancy", back_populates="invoice")
+    disputes = relationship("Dispute", back_populates="invoice")

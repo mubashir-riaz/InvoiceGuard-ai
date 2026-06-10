@@ -1,7 +1,8 @@
 # FastAPI application factory – includes all API routers.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import health, clients, contracts, invoices, discrepancies
+from app.api import health, clients, contracts, invoices, discrepancies, disputes
+
 from app.core.config import settings
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -20,6 +21,7 @@ app.include_router(clients.router)
 app.include_router(contracts.router)
 app.include_router(invoices.router)
 app.include_router(discrepancies.router)   
+app.include_router(disputes.router) 
 
 
 @app.get("/")

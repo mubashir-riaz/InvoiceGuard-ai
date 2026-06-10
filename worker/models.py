@@ -1,7 +1,7 @@
 # Duplicated ORM models for Invoice and LineItem (same structure as backend).
 # This allows the worker to read/write without importing the backend package.
 import json
-from sqlalchemy import BigInteger, Column, Integer, String, Date, Float, ForeignKey, Enum, JSON
+from sqlalchemy import BigInteger, Column, Integer, String, Date, Float, ForeignKey, Enum, JSON,Text
 from sqlalchemy.orm import relationship, declarative_base
 import enum
 
@@ -29,17 +29,18 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    client_id = Column(Integer, nullable=False)
-    contract_id = Column(Integer, nullable=True)
+    client_id = Column(BigInteger, nullable=False)
+    contract_id = Column(BigInteger, nullable=True)
     invoice_number = Column(String(100), nullable=False, unique=True)
     carrier = Column(String(100), nullable=False)
     invoice_date = Column(Date, nullable=False)
     total_amount = Column(Float, nullable=False)
     status = Column(Enum(InvoiceStatus), default=InvoiceStatus.UPLOADED)
     file_path = Column(String(500), nullable=True)
-    discrepancies = relationship("Discrepancy", back_populates="invoice")
-    line_items = relationship("LineItem", back_populates="invoice")
 
+    line_items = relationship("LineItem", back_populates="invoice")
+    discrepancies = relationship("Discrepancy", back_populates="invoice")
+    disputes = relationship("Dispute", back_populates="invoice")  
 class LineItem(Base):
     __tablename__ = "line_items"
 
@@ -65,3 +66,20 @@ class Discrepancy(Base):
 
     invoice = relationship("Invoice", back_populates="discrepancies")
     line_item = relationship("LineItem")
+
+class DisputeStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    SENT = "SENT"
+
+class Dispute(Base):
+    __tablename__ = "disputes"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    invoice_id = Column(BigInteger, ForeignKey("invoices.id"), nullable=False)
+    discrepancy_id = Column(BigInteger, ForeignKey("discrepancies.id"), nullable=True)
+    carrier = Column(String(100), nullable=False)
+    draft_body = Column(Text, nullable=True)
+    status = Column(Enum(DisputeStatus), default=DisputeStatus.DRAFT)
+
+    invoice = relationship("Invoice", back_populates="disputes")
+    discrepancy = relationship("Discrepancy")
