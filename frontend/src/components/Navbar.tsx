@@ -16,6 +16,18 @@ const Navbar = () => {
         <Link to="/disputes" className={linkClass("/disputes")}>
           Disputes
         </Link>
+        <Link to="/" className={linkClass("/")}>
+          Dashboard
+        </Link>
+        <Link to="/clients" className={linkClass("/clients")}>
+          Clients
+        </Link>
+        <Link to="/contracts" className={linkClass("/contracts")}>
+          Contracts
+        </Link>
+        <Link to="/disputes" className={linkClass("/disputes")}>
+          Disputes
+        </Link>
       </div>
     </nav>
   );

@@ -104,3 +104,67 @@ export const useSendDispute = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["disputes"] }),
   });
 };
+
+// ---------- Client Mutations ----------
+export const useCreateClient = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; email: string }) =>
+      api.post("/clients/", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
+  });
+};
+
+export const useUpdateClient = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...data
+    }: {
+      id: number;
+      name: string;
+      email: string;
+    }) => api.put(`/clients/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
+  });
+};
+
+export const useDeleteClient = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/clients/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
+  });
+};
+
+// ---------- Contract Mutations ----------
+export const useCreateContract = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.post("/contracts/", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contracts"] }),
+  });
+};
+
+export const useUpdateContract = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: any) => api.put(`/contracts/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contracts"] }),
+  });
+};
+
+export const useDeleteContract = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/contracts/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contracts"] }),
+  });
+};
+
+export const useContracts = () =>
+  useQuery({
+    queryKey: ["contracts"],
+    queryFn: () => api.get("/contracts/").then((r) => r.data),
+  });

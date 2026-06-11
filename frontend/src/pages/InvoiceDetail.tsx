@@ -1,11 +1,14 @@
 // Detail page for a single invoice: line items, discrepancies, disputes.
 import { useParams, useNavigate } from "react-router-dom";
+
 import {
   useInvoice,
   useLineItems,
   useDiscrepancies,
   useDisputes,
   useGenerateDispute,
+  useUpdateDispute,
+  useSendDispute,
 } from "../hooks/useApi";
 import StatusBadge from "../components/StatusBadge";
 import DataTable from "../components/DataTable";
@@ -19,6 +22,8 @@ const InvoiceDetail = () => {
   const { data: disputes } = useDisputes(invoiceId);
   const generate = useGenerateDispute();
   const navigate = useNavigate();
+  const updateDispute = useUpdateDispute();
+  const sendDispute = useSendDispute();
 
   const lineColumns = [
     { header: "Tracking #", accessor: "tracking_number" as const },
@@ -87,6 +92,26 @@ const InvoiceDetail = () => {
               <pre className="whitespace-pre-wrap text-sm mt-2 bg-gray-50 p-3 rounded">
                 {d.draft_body}
               </pre>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    const newBody = prompt("Edit dispute email:", d.draft_body);
+                    if (newBody)
+                      updateDispute.mutate({ id: d.id, draft_body: newBody });
+                  }}
+                  className="text-blue-600 text-sm"
+                >
+                  Edit
+                </button>
+                {d.status === "DRAFT" && (
+                  <button
+                    onClick={() => sendDispute.mutate(d.id)}
+                    className="text-green-600 text-sm"
+                  >
+                    Send
+                  </button>
+                )}
+              </div>
             </div>
           ))
         ) : (
