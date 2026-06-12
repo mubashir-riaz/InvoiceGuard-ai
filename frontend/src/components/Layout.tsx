@@ -62,7 +62,7 @@ const Layout = () => {
               </div>
               <div className="hidden sm:block">
                 <p className="text-xs font-bold text-slate-700 leading-none">John Doe</p>
-                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Freight Auditor</p>
+                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Invoice Guard</p>
               </div>
             </button>
           </div>

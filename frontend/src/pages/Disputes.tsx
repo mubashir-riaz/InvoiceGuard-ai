@@ -265,7 +265,7 @@ const Disputes = () => {
                   onChange={(e) => setEditBody(e.target.value)}
                 />
               ) : (
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4.5 max-h-[250px] overflow-y-auto">
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 max-h-[250px] overflow-y-auto">
                   <pre className="whitespace-pre-wrap text-[11px] leading-relaxed font-mono text-slate-600">
                     {selectedDispute.draft_body}
                   </pre>
@@ -291,7 +291,7 @@ const Disputes = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedDispute(null)}
-                  className="px-4.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
                 >
                   Close
                 </button>
@@ -301,7 +301,7 @@ const Disputes = () => {
                     <button
                       onClick={handleSave}
                       disabled={updateDispute.isPending}
-                      className="px-5.5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-1.5"
+                      className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-1.5"
                     >
                       <Check className="w-4 h-4" />
                       <span>{updateDispute.isPending ? "Saving..." : "Save Draft"}</span>
@@ -310,7 +310,7 @@ const Disputes = () => {
                     <button
                       onClick={handleSend}
                       disabled={sendDispute.isPending}
-                      className="px-5.5 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-1.5"
+                      className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-1.5"
                     >
                       <Send className="w-4 h-4" />
                       <span>{sendDispute.isPending ? "Sending..." : "Submit Claim"}</span>

@@ -51,7 +51,7 @@ const Navbar = ({ isOpen, onClose }: SidebarProps) => {
         }`}
       >
         {/* Logo/Brand Header */}
-        <div className="flex items-center justify-between px-6 py-5.5 border-b border-slate-100">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <Link to="/" className="flex items-center gap-2.5" onClick={onClose}>
             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-md shadow-indigo-100">
               <Truck className="w-5 h-5" />

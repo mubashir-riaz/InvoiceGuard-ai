@@ -221,7 +221,7 @@ const Contracts = () => {
                 </div>
 
                 {/* Edit & Delete Action Panel */}
-                <div className="flex justify-end gap-2 border-t border-slate-50/50 pt-4.5">
+                <div className="flex justify-end gap-2 border-t border-slate-50/50 pt-4">
                   <button
                     onClick={() => handleEditClick(c)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-xs transition-colors"
@@ -388,14 +388,14 @@ const Contracts = () => {
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="px-4.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={clientId === 0}
-                className="px-5.5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold text-sm shadow-sm hover:shadow-md transition-all disabled:opacity-50"
+                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold text-sm shadow-sm hover:shadow-md transition-all disabled:opacity-50"
               >
                 {editingId ? "Save Changes" : "Save Contract"}
               </button>

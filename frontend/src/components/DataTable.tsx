@@ -62,7 +62,7 @@ function DataTable<T extends { id: number }>({
                   {columns.map((col, i) => (
                     <td
                       key={i}
-                      className={`px-6 py-4.5 text-sm text-slate-600 font-medium ${
+                      className={`px-6 py-3 text-sm text-slate-600 font-medium ${
                         col.className || ""
                       }`}
                     >

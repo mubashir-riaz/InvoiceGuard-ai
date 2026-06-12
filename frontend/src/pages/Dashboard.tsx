@@ -145,7 +145,7 @@ const Dashboard = () => {
 
             <button
               onClick={() => navigate(`/invoices/${row.id}`)}
-              className="flex items-center justify-center w-7.5 h-7.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
               title="View Invoice Details"
             >
               <Eye className="w-4 h-4" />
@@ -223,7 +223,7 @@ const Dashboard = () => {
       </div>
 
       {/* Control Panel: Search & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4.5 rounded-2xl border border-slate-100 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
         
         {/* Search */}
         <div className="relative flex-1 max-w-md">
