@@ -37,7 +37,11 @@ export const useProcessInvoice = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.post(`/invoices/${id}/process`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoice", id] });
+      qc.invalidateQueries({ queryKey: ["lineItems", id] });
+    },
   });
 };
 
@@ -45,7 +49,11 @@ export const useAuditInvoice = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.post(`/invoices/${id}/audit`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoice", id] });
+      qc.invalidateQueries({ queryKey: ["discrepancies", id] });
+    },
   });
 };
 

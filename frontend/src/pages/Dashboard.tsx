@@ -41,8 +41,11 @@ const Dashboard = () => {
     const list = invoices || [];
     const totalCount = list.length;
     const totalAmount = list.reduce((sum: number, inv: any) => sum + Number(inv.total_amount || 0), 0);
-    const auditedCount = list.filter((inv: any) => inv.status === "audited" || inv.status === "disputed").length;
-    const disputedCount = list.filter((inv: any) => inv.status === "disputed").length;
+    const auditedCount = list.filter((inv: any) => {
+      const status = inv.status?.toLowerCase();
+      return status === "audited" || status === "disputed";
+    }).length;
+    const disputedCount = list.filter((inv: any) => inv.status?.toLowerCase() === "disputed").length;
     
     return {
       totalCount,
@@ -113,7 +116,7 @@ const Dashboard = () => {
 
         return (
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            {row.status === "uploaded" && (
+            {row.status?.toLowerCase() === "uploaded" && (
               <button
                 onClick={() => process.mutate(row.id)}
                 disabled={isProcessing}
@@ -128,7 +131,7 @@ const Dashboard = () => {
               </button>
             )}
             
-            {row.status === "extracted" && (
+            {row.status?.toLowerCase() === "extracted" && (
               <button
                 onClick={() => audit.mutate(row.id)}
                 disabled={isAuditing}

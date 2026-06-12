@@ -8,6 +8,8 @@ import {
   useGenerateDispute,
   useUpdateDispute,
   useSendDispute,
+  useProcessInvoice,
+  useAuditInvoice,
 } from "../hooks/useApi";
 import StatusBadge from "../components/StatusBadge";
 import DataTable from "../components/DataTable";
@@ -20,11 +22,13 @@ import {
   Edit2, 
   Sparkles, 
   ShieldAlert, 
+  ShieldCheck,
   DollarSign, 
   CheckCircle2, 
   FileSpreadsheet,
   X,
-  Check
+  Check,
+  RefreshCw
 } from "lucide-react";
 
 const InvoiceDetail = () => {
@@ -37,9 +41,13 @@ const InvoiceDetail = () => {
   const { data: discrepancies } = useDiscrepancies(invoiceId);
   const { data: disputes } = useDisputes(invoiceId);
 
+  const invoiceStatus = invoice?.status?.toLowerCase();
+
   const generate = useGenerateDispute();
   const updateDispute = useUpdateDispute();
   const sendDispute = useSendDispute();
+  const process = useProcessInvoice();
+  const audit = useAuditInvoice();
 
   // Inline email editor state
   const [editingDisputeId, setEditingDisputeId] = useState<number | null>(null);
@@ -136,9 +144,41 @@ const InvoiceDetail = () => {
         </button>
 
         {invoice && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400 font-bold">CURRENT STATUS:</span>
-            <StatusBadge status={invoice.status} />
+          <div className="flex items-center gap-3">
+            {invoiceStatus === "uploaded" && (
+              <button
+                onClick={() => process.mutate(invoiceId)}
+                disabled={process.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold text-xs transition-all disabled:opacity-50"
+              >
+                {process.isPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                <span>Extract AI</span>
+              </button>
+            )}
+
+            {invoiceStatus === "extracted" && (
+              <button
+                onClick={() => audit.mutate(invoiceId)}
+                disabled={audit.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 font-bold text-xs transition-all disabled:opacity-50"
+              >
+                {audit.isPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                )}
+                <span>Audit rates</span>
+              </button>
+            )}
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-bold">CURRENT STATUS:</span>
+              <StatusBadge status={invoice.status} />
+            </div>
           </div>
         )}
       </div>
@@ -178,6 +218,53 @@ const InvoiceDetail = () => {
                   <span className="font-bold text-slate-700 mt-0.5 block">Client ID #{invoice.client_id}</span>
                 </div>
               </div>
+
+              {/* Action Banner inside Overview */}
+              {(invoiceStatus === "uploaded" || invoiceStatus === "extracted") && (
+                <div className="flex items-center justify-between mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
+                    <div>
+                      <h4 className="text-xs font-extrabold text-slate-800">
+                        {invoiceStatus === "uploaded" ? "AI Extraction Pending" : "AI Audit Pending"}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                        {invoiceStatus === "uploaded" 
+                          ? "Run AI extraction to retrieve line items and details."
+                          : "Audit this invoice's rates against contracted tariffs."}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {invoiceStatus === "uploaded" ? (
+                    <button
+                      onClick={() => process.mutate(invoiceId)}
+                      disabled={process.isPending}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs transition-all disabled:opacity-50 shadow-sm"
+                    >
+                      {process.isPending ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                      <span>Run Extract AI</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => audit.mutate(invoiceId)}
+                      disabled={audit.isPending}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs transition-all disabled:opacity-50 shadow-sm"
+                    >
+                      {audit.isPending ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                      )}
+                      <span>Run Audit Rates</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Extracted Line Items */}
@@ -200,48 +287,64 @@ const InvoiceDetail = () => {
           <div className="space-y-6">
             
             {/* AI Auditor Summary Block */}
-            <div className={`p-6 rounded-2xl border shadow-sm space-y-4 ${
-              totalDiscrepancyAmount > 0 
-                ? "bg-rose-50/30 border-rose-100 text-rose-900" 
-                : "bg-emerald-50/20 border-emerald-100 text-emerald-900"
-            }`}>
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-extrabold uppercase tracking-wider flex items-center gap-2">
-                  {totalDiscrepancyAmount > 0 ? (
-                    <>
-                      <ShieldAlert className="w-5 h-5 text-rose-500" />
-                      <span>Audit: Discrepancy Found</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      <span>Audit: Rates Verified</span>
-                    </>
-                  )}
-                </h3>
-              </div>
+            {invoiceStatus === "audited" || invoiceStatus === "disputed" ? (
+              <div className={`p-6 rounded-2xl border shadow-sm space-y-4 ${
+                totalDiscrepancyAmount > 0 
+                  ? "bg-rose-50/30 border-rose-100 text-rose-900" 
+                  : "bg-emerald-50/20 border-emerald-100 text-emerald-900"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider flex items-center gap-2">
+                    {totalDiscrepancyAmount > 0 ? (
+                      <>
+                        <ShieldAlert className="w-5 h-5 text-rose-500" />
+                        <span>Audit: Discrepancy Found</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        <span>Audit: Rates Verified</span>
+                      </>
+                    )}
+                  </h3>
+                </div>
 
-              {totalDiscrepancyAmount > 0 ? (
-                <>
+                {totalDiscrepancyAmount > 0 ? (
+                  <>
+                    <p className="text-sm leading-relaxed">
+                      AI audited this invoice against the carrier contract terms and detected overcharged differences.
+                    </p>
+                    <div className="bg-white/80 backdrop-blur border border-rose-100 p-4 rounded-xl flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold text-rose-600 block uppercase tracking-wider">Total Discrepancy</span>
+                        <span className="text-xl font-extrabold text-rose-700 mt-0.5 block">${totalDiscrepancyAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="px-3 py-1 bg-rose-500 text-white font-bold text-xs rounded-lg">
+                        CLAIMABLE
+                      </div>
+                    </div>
+                  </>
+                ) : (
                   <p className="text-sm leading-relaxed">
-                    AI audited this invoice against the carrier contract terms and detected overcharged differences.
+                    Excellent! The charges match client contract rate tariffs. No differences were flagged.
                   </p>
-                  <div className="bg-white/80 backdrop-blur border border-rose-100 p-4 rounded-xl flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-rose-600 block uppercase tracking-wider">Total Discrepancy</span>
-                      <span className="text-xl font-extrabold text-rose-700 mt-0.5 block">${totalDiscrepancyAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="px-3 py-1 bg-rose-500 text-white font-bold text-xs rounded-lg">
-                      CLAIMABLE
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm leading-relaxed">
-                  Excellent! The charges match client contract rate tariffs. No differences were flagged.
+                )}
+              </div>
+            ) : (
+              <div className="p-6 rounded-2xl border border-slate-200/60 bg-slate-50/50 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider flex items-center gap-2 text-slate-500">
+                    <ShieldAlert className="w-5 h-5 text-slate-400" />
+                    <span>Audit Status</span>
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+                  {invoiceStatus === "uploaded" 
+                    ? "This invoice is uploaded but the line items have not been extracted yet. Run 'Extract AI' to begin." 
+                    : "Line items have been extracted. Click 'Run Audit Rates' to audit the charges against the client contract terms."}
                 </p>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Discrepancy Details List */}
             {discrepancies && discrepancies.length > 0 && (
@@ -352,7 +455,7 @@ const InvoiceDetail = () => {
               )}
 
               {/* Generate Dispute Trigger */}
-              {invoice?.status === "audited" && disputes?.length === 0 && (
+              {invoiceStatus === "audited" && disputes?.length === 0 && (
                 <button
                   onClick={() => generate.mutate(invoiceId)}
                   disabled={generate.isPending}
