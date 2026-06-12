@@ -281,14 +281,16 @@ const Dashboard = () => {
 
       {/* Upload Modal Overlay */}
       {showUpload && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-2xl transform transition-all animate-scale-up">
-            <FileUpload 
-              onClose={() => {
-                setShowUpload(false);
-                refetch();
-              }} 
-            />
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="w-full max-w-2xl transform transition-all animate-scale-up">
+              <FileUpload 
+                onClose={() => {
+                  setShowUpload(false);
+                  refetch();
+                }} 
+              />
+            </div>
           </div>
         </div>
       )}
