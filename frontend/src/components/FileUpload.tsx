@@ -92,6 +92,9 @@ const FileUpload = ({
       onSuccess: () => {
         // Reset form
         setFile(null);
+        if (fileRef.current) {
+          fileRef.current.value = "";
+        }
         setInvoiceNumber("");
         setCarrier("");
         setInvoiceDate("");
@@ -259,6 +262,9 @@ const FileUpload = ({
               onClick={(e) => {
                 e.stopPropagation();
                 setFile(null);
+                if (fileRef.current) {
+                  fileRef.current.value = "";
+                }
               }}
               className="text-xs text-rose-500 font-semibold hover:underline mt-1"
             >

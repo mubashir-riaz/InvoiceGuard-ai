@@ -455,7 +455,7 @@ const InvoiceDetail = () => {
               )}
 
               {/* Generate Dispute Trigger */}
-              {invoiceStatus === "audited" && disputes?.length === 0 && (
+              {invoiceStatus === "audited" && discrepancies && discrepancies.length > 0 && disputes?.length === 0 && (
                 <button
                   onClick={() => generate.mutate(invoiceId)}
                   disabled={generate.isPending}
