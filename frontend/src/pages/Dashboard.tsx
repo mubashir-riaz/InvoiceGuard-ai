@@ -146,6 +146,13 @@ const Dashboard = () => {
               </button>
             )}
 
+            {row.status?.toLowerCase() === "processing" && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 font-bold text-xs border border-amber-200/50">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                <span>Processing...</span>
+              </div>
+            )}
+
             <button
               onClick={() => navigate(`/invoices/${row.id}`)}
               className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"

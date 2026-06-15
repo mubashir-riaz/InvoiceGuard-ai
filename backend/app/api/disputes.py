@@ -40,6 +40,13 @@ async def send_dispute(dispute_id: int, db: AsyncSession = Depends(get_db)):
     if not dispute:
         raise HTTPException(status_code=404, detail="Dispute not found")
     dispute.status = DisputeStatus.SENT
+
+    # Update invoice status to DISPUTED
+    from app.models.invoice import Invoice, InvoiceStatus
+    invoice = await db.get(Invoice, dispute.invoice_id)
+    if invoice:
+        invoice.status = InvoiceStatus.DISPUTED
+
     await db.commit()
     await db.refresh(dispute)
     return dispute

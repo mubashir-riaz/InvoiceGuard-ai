@@ -36,18 +36,28 @@ const InvoiceDetail = () => {
   const invoiceId = Number(id);
   const navigate = useNavigate();
 
-  const { data: invoice, isLoading: isInvoiceLoading } = useInvoice(invoiceId);
-  const { data: lineItems } = useLineItems(invoiceId);
-  const { data: discrepancies } = useDiscrepancies(invoiceId);
-  const { data: disputes } = useDisputes(invoiceId);
-
-  const invoiceStatus = invoice?.status?.toLowerCase();
-
   const generate = useGenerateDispute();
   const updateDispute = useUpdateDispute();
   const sendDispute = useSendDispute();
   const process = useProcessInvoice();
   const audit = useAuditInvoice();
+
+  const { data: invoice, isLoading: isInvoiceLoading } = useInvoice(invoiceId);
+  const invoiceStatus = invoice?.status?.toLowerCase();
+  const isProcessing = invoiceStatus === "processing";
+
+  const { data: lineItems } = useLineItems(invoiceId, {
+    refetchInterval: isProcessing ? 2000 : false,
+  });
+  const { data: discrepancies } = useDiscrepancies(invoiceId, {
+    refetchInterval: isProcessing ? 2000 : false,
+  });
+  const { data: disputes } = useDisputes(invoiceId, {
+    refetchInterval: (query: any) => {
+      const list = query.state.data || [];
+      return (generate.isSuccess && list.length === 0) ? 2000 : false;
+    }
+  });
 
   // Inline email editor state
   const [editingDisputeId, setEditingDisputeId] = useState<number | null>(null);
@@ -220,23 +230,31 @@ const InvoiceDetail = () => {
               </div>
 
               {/* Action Banner inside Overview */}
-              {(invoiceStatus === "uploaded" || invoiceStatus === "extracted") && (
+              {(invoiceStatus === "uploaded" || invoiceStatus === "extracted" || invoiceStatus === "processing") && (
                 <div className="flex items-center justify-between mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
                     <div>
                       <h4 className="text-xs font-extrabold text-slate-800">
-                        {invoiceStatus === "uploaded" ? "AI Extraction Pending" : "AI Audit Pending"}
+                        {invoiceStatus === "uploaded" && "AI Extraction Pending"}
+                        {invoiceStatus === "extracted" && "AI Audit Pending"}
+                        {invoiceStatus === "processing" && (
+                          lineItems && lineItems.length > 0 ? "AI Audit In Progress..." : "AI Extraction In Progress..."
+                        )}
                       </h4>
                       <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                        {invoiceStatus === "uploaded" 
-                          ? "Run AI extraction to retrieve line items and details."
-                          : "Audit this invoice's rates against contracted tariffs."}
+                        {invoiceStatus === "uploaded" && "Run AI extraction to retrieve line items and details."}
+                        {invoiceStatus === "extracted" && "Audit this invoice's rates against contracted tariffs."}
+                        {invoiceStatus === "processing" && (
+                          lineItems && lineItems.length > 0
+                            ? "AI is auditing the extracted rates against carrier contract terms."
+                            : "AI is extracting line items and details from the invoice."
+                        )}
                       </p>
                     </div>
                   </div>
                   
-                  {invoiceStatus === "uploaded" ? (
+                  {invoiceStatus === "uploaded" && (
                     <button
                       onClick={() => process.mutate(invoiceId)}
                       disabled={process.isPending}
@@ -249,7 +267,8 @@ const InvoiceDetail = () => {
                       )}
                       <span>Run Extract AI</span>
                     </button>
-                  ) : (
+                  )}
+                  {invoiceStatus === "extracted" && (
                     <button
                       onClick={() => audit.mutate(invoiceId)}
                       disabled={audit.isPending}
@@ -262,6 +281,12 @@ const InvoiceDetail = () => {
                       )}
                       <span>Run Audit Rates</span>
                     </button>
+                  )}
+                  {invoiceStatus === "processing" && (
+                    <div className="flex items-center gap-1.5 px-4 py-2 text-slate-500 font-extrabold text-xs bg-white border border-slate-100 rounded-lg shadow-sm">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                      <span>Processing...</span>
+                    </div>
                   )}
                 </div>
               )}
@@ -341,7 +366,9 @@ const InvoiceDetail = () => {
                 <p className="text-xs text-slate-500 leading-relaxed font-semibold">
                   {invoiceStatus === "uploaded" 
                     ? "This invoice is uploaded but the line items have not been extracted yet. Run 'Extract AI' to begin." 
-                    : "Line items have been extracted. Click 'Run Audit Rates' to audit the charges against the client contract terms."}
+                    : invoiceStatus === "processing"
+                      ? (lineItems && lineItems.length > 0 ? "AI is auditing the charges..." : "AI is extracting line items...")
+                      : "Line items have been extracted. Click 'Run Audit Rates' to audit the charges against the client contract terms."}
                 </p>
               </div>
             )}

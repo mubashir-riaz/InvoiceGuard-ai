@@ -105,6 +105,10 @@ async def audit_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     if invoice.status != InvoiceStatus.EXTRACTED:
         raise HTTPException(status_code=400, detail="Invoice must be in 'extracted' status before audit")
 
+    # Mark as processing immediately
+    invoice.status = InvoiceStatus.PROCESSING
+    await db.commit()
+
     # Enqueue the matching task
     await enqueue_task("match_and_audit", invoice_id)
     return {"message": "Audit started", "invoice_id": invoice_id}

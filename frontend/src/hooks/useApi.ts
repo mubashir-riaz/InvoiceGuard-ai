@@ -11,15 +11,26 @@ export const useClients = () =>
 
 // ---------- Invoices ----------
 export const useInvoices = () =>
-  useQuery({
+  useQuery<any>({
     queryKey: ["invoices"],
     queryFn: () => api.get("/invoices/").then((r) => r.data),
+    refetchInterval: (query) => {
+      const list = query.state.data || [];
+      const hasProcessing = list.some(
+        (inv: any) => inv.status?.toLowerCase() === "processing"
+      );
+      return hasProcessing ? 2000 : false;
+    },
   });
 
 export const useInvoice = (id: number) =>
-  useQuery({
+  useQuery<any>({
     queryKey: ["invoice", id],
     queryFn: () => api.get(`/invoices/${id}`).then((r) => r.data),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status?.toLowerCase();
+      return status === "processing" ? 2000 : false;
+    },
   });
 
 export const useUploadInvoice = () => {
@@ -58,33 +69,36 @@ export const useAuditInvoice = () => {
 };
 
 // ---------- Line Items ----------
-export const useLineItems = (invoiceId: number) =>
-  useQuery({
+export const useLineItems = (invoiceId: number, options?: any) =>
+  useQuery<any>({
     queryKey: ["lineItems", invoiceId],
     queryFn: () =>
       api.get(`/invoices/${invoiceId}/line-items`).then((r) => r.data),
+    ...options,
   });
 
 // ---------- Discrepancies ----------
-export const useDiscrepancies = (invoiceId?: number) =>
-  useQuery({
+export const useDiscrepancies = (invoiceId?: number, options?: any) =>
+  useQuery<any>({
     queryKey: ["discrepancies", invoiceId],
     queryFn: () =>
       api
         .get("/discrepancies/", { params: { invoice_id: invoiceId } })
         .then((r) => r.data),
     enabled: !!invoiceId,
+    ...options,
   });
 
 // ---------- Disputes ----------
-export const useDisputes = (invoiceId?: number) =>
-  useQuery({
+export const useDisputes = (invoiceId?: number, options?: any) =>
+  useQuery<any>({
     queryKey: ["disputes", invoiceId],
     queryFn: () =>
       api
         .get("/disputes/", { params: { invoice_id: invoiceId } })
         .then((r) => r.data),
     enabled: !!invoiceId,
+    ...options,
   });
 
 export const useGenerateDispute = () => {
@@ -108,8 +122,14 @@ export const useUpdateDispute = () => {
 export const useSendDispute = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.post(`/disputes/${id}/send`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["disputes"] }),
+    mutationFn: (id: number) => api.post(`/disputes/${id}/send`).then((r) => r.data),
+    onSuccess: (dispute) => {
+      qc.invalidateQueries({ queryKey: ["disputes"] });
+      if (dispute?.invoice_id) {
+        qc.invalidateQueries({ queryKey: ["invoice", dispute.invoice_id] });
+        qc.invalidateQueries({ queryKey: ["invoices"] });
+      }
+    },
   });
 };
 
