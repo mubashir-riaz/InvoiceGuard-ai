@@ -300,11 +300,87 @@ const InvoiceDetail = () => {
                   <span>Extracted Line Items ({lineItems?.length || 0})</span>
                 </h3>
               </div>
-              <DataTable 
-                columns={lineColumns} 
-                data={lineItems || []} 
-                emptyMessage="No line items extracted. Make sure to run 'Extract AI' on this invoice."
-              />
+
+              {invoiceStatus === "uploaded" ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200/80 space-y-4">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm">
+                    <Sparkles className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div className="max-w-md space-y-1.5">
+                    <h4 className="text-sm font-bold text-slate-800">AI Extraction Required</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed font-semibold font-sans">
+                      This invoice's line items are currently locked inside the PDF. Run AI Extraction to automatically retrieve details like:
+                    </p>
+                    <ul className="text-[11px] text-slate-600 font-semibold grid grid-cols-2 gap-x-4 gap-y-1.5 pt-2 max-w-xs mx-auto text-left list-disc list-inside bg-white/60 p-3 rounded-xl border border-slate-100">
+                      <li>Tracking Numbers</li>
+                      <li>Charged Amounts</li>
+                      <li>Item Descriptions</li>
+                      <li>Shipment Weights</li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => process.mutate(invoiceId)}
+                    disabled={process.isPending}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm disabled:opacity-50"
+                  >
+                    {process.isPending ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                    <span>Run Extract AI</span>
+                  </button>
+                </div>
+              ) : invoiceStatus === "processing" && (!lineItems || lineItems.length === 0) ? (
+                <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200/80 space-y-4">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm animate-pulse">
+                    <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+                  </div>
+                  <div className="max-w-md space-y-1">
+                    <h4 className="text-sm font-bold text-slate-800">Extracting Line Items...</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+                      AI is parsing the invoice PDF and extracting shipment tracking numbers, descriptions, weights, and charged rates.
+                    </p>
+                  </div>
+                  <div className="w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-600 rounded-full animate-pulse" style={{ width: '100%' }} />
+                  </div>
+                </div>
+              ) : invoiceStatus === "error" && (!lineItems || lineItems.length === 0) ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center bg-rose-50/20 rounded-2xl border border-dashed border-rose-200/80 space-y-4">
+                  <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-sm">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div className="max-w-md space-y-1">
+                    <h4 className="text-sm font-bold text-rose-800">Extraction Failed</h4>
+                    <p className="text-xs text-rose-500 leading-relaxed font-semibold">
+                      An error occurred during AI extraction. Please verify the PDF file content or click the button below to try again.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => process.mutate(invoiceId)}
+                    disabled={process.isPending}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm disabled:opacity-50"
+                  >
+                    {process.isPending ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                    <span>Retry Extraction</span>
+                  </button>
+                </div>
+              ) : (
+                <DataTable 
+                  columns={lineColumns} 
+                  data={lineItems || []} 
+                  emptyMessage={
+                    invoiceStatus === "uploaded" 
+                      ? "No line items extracted. Make sure to run 'Extract AI' on this invoice."
+                      : "No line items could be extracted from this invoice PDF."
+                  }
+                />
+              )}
             </div>
           </div>
 
