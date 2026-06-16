@@ -155,7 +155,9 @@ const InvoiceDetail = () => {
 
         {invoice && (
           <div className="flex items-center gap-3">
-            {invoiceStatus === "uploaded" && (
+            {(invoiceStatus === "uploaded" || 
+              ((invoiceStatus === "extracted" || invoiceStatus === "error" || invoiceStatus === "audited") && 
+               (!lineItems || lineItems.length === 0))) && (
               <button
                 onClick={() => process.mutate(invoiceId)}
                 disabled={process.isPending}
@@ -166,11 +168,11 @@ const InvoiceDetail = () => {
                 ) : (
                   <Sparkles className="w-3.5 h-3.5" />
                 )}
-                <span>Extract AI</span>
+                <span>{invoiceStatus === "uploaded" ? "Extract AI" : "Re-run Extract AI"}</span>
               </button>
             )}
 
-            {invoiceStatus === "extracted" && (
+            {invoiceStatus === "extracted" && lineItems && lineItems.length > 0 && (
               <button
                 onClick={() => audit.mutate(invoiceId)}
                 disabled={audit.isPending}
@@ -230,21 +232,28 @@ const InvoiceDetail = () => {
               </div>
 
               {/* Action Banner inside Overview */}
-              {(invoiceStatus === "uploaded" || invoiceStatus === "extracted" || invoiceStatus === "processing") && (
+              {(invoiceStatus === "uploaded" || 
+                invoiceStatus === "extracted" || 
+                invoiceStatus === "processing" || 
+                ((invoiceStatus === "error" || invoiceStatus === "audited") && (!lineItems || lineItems.length === 0))) && (
                 <div className="flex items-center justify-between mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
                     <div>
                       <h4 className="text-xs font-extrabold text-slate-800">
                         {invoiceStatus === "uploaded" && "AI Extraction Pending"}
-                        {invoiceStatus === "extracted" && "AI Audit Pending"}
+                        {invoiceStatus === "extracted" && (lineItems && lineItems.length > 0 ? "AI Audit Pending" : "AI Extraction Required")}
+                        {invoiceStatus === "audited" && (!lineItems || lineItems.length === 0) && "AI Extraction Required"}
+                        {invoiceStatus === "error" && "AI Extraction Failed"}
                         {invoiceStatus === "processing" && (
                           lineItems && lineItems.length > 0 ? "AI Audit In Progress..." : "AI Extraction In Progress..."
                         )}
                       </h4>
                       <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
                         {invoiceStatus === "uploaded" && "Run AI extraction to retrieve line items and details."}
-                        {invoiceStatus === "extracted" && "Audit this invoice's rates against contracted tariffs."}
+                        {invoiceStatus === "extracted" && (lineItems && lineItems.length > 0 ? "Audit this invoice's rates against contracted tariffs." : "No line items extracted. Re-run AI extraction.")}
+                        {invoiceStatus === "audited" && (!lineItems || lineItems.length === 0) && "No line items extracted. Re-run AI extraction."}
+                        {invoiceStatus === "error" && "Something went wrong. Please check details or retry."}
                         {invoiceStatus === "processing" && (
                           lineItems && lineItems.length > 0
                             ? "AI is auditing the extracted rates against carrier contract terms."
@@ -254,7 +263,7 @@ const InvoiceDetail = () => {
                     </div>
                   </div>
                   
-                  {invoiceStatus === "uploaded" && (
+                  {(invoiceStatus === "uploaded" || ((invoiceStatus === "extracted" || invoiceStatus === "error" || invoiceStatus === "audited") && (!lineItems || lineItems.length === 0))) && (
                     <button
                       onClick={() => process.mutate(invoiceId)}
                       disabled={process.isPending}
@@ -265,10 +274,10 @@ const InvoiceDetail = () => {
                       ) : (
                         <Sparkles className="w-3.5 h-3.5" />
                       )}
-                      <span>Run Extract AI</span>
+                      <span>{invoiceStatus === "uploaded" ? "Run Extract AI" : "Re-run Extract AI"}</span>
                     </button>
                   )}
-                  {invoiceStatus === "extracted" && (
+                  {invoiceStatus === "extracted" && lineItems && lineItems.length > 0 && (
                     <button
                       onClick={() => audit.mutate(invoiceId)}
                       disabled={audit.isPending}
@@ -346,39 +355,28 @@ const InvoiceDetail = () => {
                     <div className="h-full bg-indigo-600 rounded-full animate-pulse" style={{ width: '100%' }} />
                   </div>
                 </div>
-              ) : invoiceStatus === "error" && (!lineItems || lineItems.length === 0) ? (
+              ) : (invoiceStatus === "error" || ((invoiceStatus === "extracted" || invoiceStatus === "audited") && (!lineItems || lineItems.length === 0))) ? (
                 <div className="flex flex-col items-center justify-center p-8 text-center bg-rose-50/20 rounded-2xl border border-dashed border-rose-200/80 space-y-4">
                   <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-sm">
                     <AlertTriangle className="w-6 h-6" />
                   </div>
                   <div className="max-w-md space-y-1">
-                    <h4 className="text-sm font-bold text-rose-800">Extraction Failed</h4>
-                    <p className="text-xs text-rose-500 leading-relaxed font-semibold">
-                      An error occurred during AI extraction. Please verify the PDF file content or click the button below to try again.
+                    <h4 className="text-sm font-bold text-rose-800">
+                      {invoiceStatus === "error" ? "Extraction Failed" : "No Line Items Extracted"}
+                    </h4>
+                    <p className="text-xs text-rose-500 leading-relaxed font-semibold font-sans">
+                      {invoiceStatus === "error" 
+                        ? "An error occurred during AI extraction. Please verify the PDF file content or retry the extraction."
+                        : "AI completed the task but was unable to find or extract any line items from this invoice. You can retry the extraction using the header or banner action."
+                      }
                     </p>
                   </div>
-                  <button
-                    onClick={() => process.mutate(invoiceId)}
-                    disabled={process.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm disabled:opacity-50"
-                  >
-                    {process.isPending ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3.5 h-3.5" />
-                    )}
-                    <span>Retry Extraction</span>
-                  </button>
                 </div>
               ) : (
                 <DataTable 
                   columns={lineColumns} 
                   data={lineItems || []} 
-                  emptyMessage={
-                    invoiceStatus === "uploaded" 
-                      ? "No line items extracted. Make sure to run 'Extract AI' on this invoice."
-                      : "No line items could be extracted from this invoice PDF."
-                  }
+                  emptyMessage="No line items could be extracted from this invoice PDF."
                 />
               )}
             </div>

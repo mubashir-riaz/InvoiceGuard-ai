@@ -3,7 +3,7 @@ import os
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from typing import List, Optional
 from datetime import date
 from app.core.database import get_db
@@ -60,6 +60,17 @@ async def get_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Invoice not found")
     return invoice
 
+from app.models.line_item import LineItem
+from app.schemas.line_item import LineItemResponse
+
+@router.get("/{invoice_id}/line-items", response_model=List[LineItemResponse])
+async def get_invoice_line_items(invoice_id: int, db: AsyncSession = Depends(get_db)):
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    result = await db.execute(select(LineItem).where(LineItem.invoice_id == invoice_id))
+    return result.scalars().all()
+
 @router.delete("/{invoice_id}", status_code=204)
 async def delete_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     invoice = await db.get(Invoice, invoice_id)
@@ -81,8 +92,17 @@ async def process_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     invoice = await db.get(Invoice, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
-    if invoice.status != InvoiceStatus.UPLOADED:
-        raise HTTPException(status_code=400, detail="Invoice already processed or in progress")
+    if invoice.status == InvoiceStatus.PROCESSING:
+        raise HTTPException(status_code=400, detail="Invoice already in progress")
+
+    from app.models.line_item import LineItem
+    from app.models.discrepancy import Discrepancy
+    from app.models.dispute import Dispute
+
+    # Clean up existing line items, discrepancies, and disputes if re-running
+    await db.execute(delete(Discrepancy).where(Discrepancy.invoice_id == invoice_id))
+    await db.execute(delete(Dispute).where(Dispute.invoice_id == invoice_id))
+    await db.execute(delete(LineItem).where(LineItem.invoice_id == invoice_id))
 
     # Mark as processing immediately
     invoice.status = InvoiceStatus.PROCESSING
