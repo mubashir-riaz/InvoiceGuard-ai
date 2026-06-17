@@ -82,8 +82,15 @@ async def match_and_audit(ctx, invoice_id: int):
         return {"status": "audited", "discrepancies_count": discrepancies_found}
 
     except Exception:
-        # Rollback and leave status as is
+        # Rollback and mark as ERROR
         await db.rollback()
+        try:
+            invoice = await db.get(Invoice, invoice_id)
+            if invoice:
+                invoice.status = InvoiceStatus.ERROR
+                await db.commit()
+        except Exception:
+            pass
         raise
     finally:
         await db.close()
