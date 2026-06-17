@@ -25,10 +25,8 @@ const Layout = () => {
 
       {/* Main content area */}
       <div className="lg:pl-64 min-h-screen flex flex-col transition-all duration-200">
-        
         {/* Header Bar */}
         <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-white/80 backdrop-blur-md border-b border-slate-100">
-          
           {/* Left section: Hamburger & Title */}
           <div className="flex items-center gap-4">
             <button
@@ -61,8 +59,12 @@ const Layout = () => {
                 JD
               </div>
               <div className="hidden sm:block">
-                <p className="text-xs font-bold text-slate-700 leading-none">John Doe</p>
-                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">Invoice Guard</p>
+                <p className="text-xs font-bold text-slate-700 leading-none">
+                  Jackson
+                </p>
+                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
+                  Invoice Guard
+                </p>
               </div>
             </button>
           </div>
@@ -78,4 +80,3 @@ const Layout = () => {
 };
 
 export default Layout;
-
