@@ -6,14 +6,25 @@ set -e
 echo "Waiting for PostgreSQL..."
 python -c "
 import asyncio, asyncpg
+from app.core.config import settings
+
+# Strip SQLAlchemy driver prefixes (e.g. postgresql+asyncpg:// -> postgresql://)
+db_url = settings.DATABASE_URL.replace('postgresql+asyncpg://', 'postgresql://')
+
 async def wait():
-    while True:
+    retries = 30
+    while retries > 0:
         try:
-            conn = await asyncpg.connect('postgresql://user:pass@db:5432/invoiceguard_ai')
+            conn = await asyncpg.connect(db_url)
             await conn.close()
-            break
-        except:
+            print('PostgreSQL is ready.')
+            return
+        except Exception as e:
+            print(f'Waiting for PostgreSQL at {db_url}... ({e})')
             await asyncio.sleep(2)
+            retries -= 1
+    raise RuntimeError(f'Could not connect to PostgreSQL after 30 attempts at {db_url}')
+
 asyncio.run(wait())
 "
 
