@@ -8,12 +8,12 @@ import enum
 Base = declarative_base()
 
 class InvoiceStatus(str, enum.Enum):
-    UPLOADED = "uploaded"
-    PROCESSING = "processing"
-    EXTRACTED = "extracted"
-    AUDITED = "audited"
-    DISPUTED = "disputed"
-    ERROR = "error"
+    UPLOADED = "UPLOADED"
+    PROCESSING = "PROCESSING"
+    EXTRACTED = "EXTRACTED"
+    AUDITED = "AUDITED"
+    DISPUTED = "DISPUTED"
+    ERROR = "ERROR"
 
 class Contract(Base):
     __tablename__ = "contracts"
@@ -35,7 +35,7 @@ class Invoice(Base):
     carrier = Column(String(100), nullable=False)
     invoice_date = Column(Date, nullable=False)
     total_amount = Column(Float, nullable=False)
-    status = Column(Enum(InvoiceStatus), default=InvoiceStatus.UPLOADED)
+    status = Column(Enum(InvoiceStatus, name="invoicestatus"), default=InvoiceStatus.UPLOADED)
     file_path = Column(String(500), nullable=True)
 
     line_items = relationship("LineItem", back_populates="invoice")
@@ -79,7 +79,7 @@ class Dispute(Base):
     discrepancy_id = Column(BigInteger, ForeignKey("discrepancies.id"), nullable=True)
     carrier = Column(String(100), nullable=False)
     draft_body = Column(Text, nullable=True)
-    status = Column(Enum(DisputeStatus), default=DisputeStatus.DRAFT)
+    status = Column(Enum(DisputeStatus, name="disputestatus"), default=DisputeStatus.DRAFT)
 
     invoice = relationship("Invoice", back_populates="disputes")
     discrepancy = relationship("Discrepancy")

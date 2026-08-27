@@ -22,7 +22,7 @@ class Invoice(Base):
     carrier = Column(String(100), nullable=False)
     invoice_date = Column(Date, nullable=False)
     total_amount = Column(Float, nullable=False)
-    status = Column(Enum(InvoiceStatus), default=InvoiceStatus.UPLOADED)
+    status = Column(Enum(InvoiceStatus, name="invoicestatus"), default=InvoiceStatus.UPLOADED)
     file_path = Column(String(500), nullable=True)
 
     client = relationship("Client", back_populates="invoices")

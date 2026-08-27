@@ -16,7 +16,7 @@ class Dispute(Base):
     discrepancy_id = Column(BigInteger, ForeignKey("discrepancies.id"), nullable=True)
     carrier = Column(String(100), nullable=False)
     draft_body = Column(Text, nullable=True)          # the generated email text
-    status = Column(Enum(DisputeStatus), default=DisputeStatus.DRAFT)
+    status = Column(Enum(DisputeStatus, name="disputestatus"), default=DisputeStatus.DRAFT)
 
     invoice = relationship("Invoice", back_populates="disputes")
     discrepancy = relationship("Discrepancy")
