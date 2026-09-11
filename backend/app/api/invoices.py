@@ -76,9 +76,23 @@ async def delete_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     invoice = await db.get(Invoice, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
-    # Optionally delete the file from disk
+
+    from app.models.line_item import LineItem
+    from app.models.discrepancy import Discrepancy
+    from app.models.dispute import Dispute
+
+    # Clean up associated records before deleting invoice to prevent FK constraint violations
+    await db.execute(delete(Dispute).where(Dispute.invoice_id == invoice_id))
+    await db.execute(delete(Discrepancy).where(Discrepancy.invoice_id == invoice_id))
+    await db.execute(delete(LineItem).where(LineItem.invoice_id == invoice_id))
+
+    # Delete physical file from disk if present
     if invoice.file_path and os.path.exists(invoice.file_path):
-        os.remove(invoice.file_path)
+        try:
+            os.remove(invoice.file_path)
+        except OSError:
+            pass
+
     await db.delete(invoice)
     await db.commit()
     return None

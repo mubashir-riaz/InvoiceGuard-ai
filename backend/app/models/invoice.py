@@ -27,6 +27,6 @@ class Invoice(Base):
 
     client = relationship("Client", back_populates="invoices")
     contract = relationship("Contract", back_populates="invoices")
-    line_items = relationship("LineItem", back_populates="invoice")
-    discrepancies = relationship("Discrepancy", back_populates="invoice")
-    disputes = relationship("Dispute", back_populates="invoice")
+    line_items = relationship("LineItem", back_populates="invoice", cascade="all, delete-orphan")
+    discrepancies = relationship("Discrepancy", back_populates="invoice", cascade="all, delete-orphan")
+    disputes = relationship("Dispute", back_populates="invoice", cascade="all, delete-orphan")
