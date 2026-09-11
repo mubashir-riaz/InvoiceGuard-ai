@@ -1,7 +1,7 @@
 # Background task: generate a professional dispute email using LLM (Groq / Gemini).
 from sqlalchemy import select
 from db import get_session
-from models import Invoice, Discrepancy, Dispute, DisputeStatus, Contract
+from models import Invoice, Discrepancy, Dispute, DisputeStatus, Contract, DisputeEvent
 from config import GROQ_API_KEY, GEMINI_API_KEY, LLM_PROVIDER
 from sqlalchemy.orm import selectinload
 
@@ -151,17 +151,78 @@ async def generate_dispute(ctx, invoice_id: int):
             contract_rates=str(contract_rates),
         )
 
-        # Save dispute
+        # Save dispute with tracked claimed amount
         dispute = Dispute(
             invoice_id=invoice.id,
             carrier=invoice.carrier,
             draft_body=email_body.strip(),
-            status=DisputeStatus.DRAFT
+            status=DisputeStatus.DRAFT,
+            claimed_amount=round(total_diff, 2),
+            recovered_amount=0.0,
+            escalated=False,
         )
         db.add(dispute)
+        await db.flush()
+
+        # Log initial lifecycle event
+        event = DisputeEvent(
+            dispute_id=dispute.id,
+            old_status=None,
+            new_status=DisputeStatus.DRAFT.value,
+            note=f"Dispute claim drafted by AI. Total claimed: ${total_diff:.2f}.",
+        )
+        db.add(event)
+
         await db.commit()
         return {"status": "generated", "dispute_id": dispute.id}
 
+    except Exception:
+        await db.rollback()
+        raise
+    finally:
+        await db.close()
+
+
+async def check_overdue_disputes(ctx):
+    """
+    Background worker cron task:
+    Scan all disputes in SENT status. If no carrier response has been logged
+    within 30 days of the dispute event, mark the dispute as EXPIRED.
+    """
+    from datetime import datetime, timedelta, timezone
+    db = await get_session()
+    try:
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+        # Find SENT disputes whose last event is older than 30 days
+        result = await db.execute(
+            select(Dispute).where(Dispute.status == DisputeStatus.SENT)
+        )
+        sent_disputes = result.scalars().all()
+        expired_count = 0
+
+        for dispute in sent_disputes:
+            # Check latest event date
+            evt_result = await db.execute(
+                select(DisputeEvent)
+                .where(DisputeEvent.dispute_id == dispute.id)
+                .order_by(DisputeEvent.created_at.desc())
+            )
+            latest_event = evt_result.scalars().first()
+            if latest_event and latest_event.created_at and latest_event.created_at < cutoff_date:
+                dispute.status = DisputeStatus.EXPIRED
+                expired_event = DisputeEvent(
+                    dispute_id=dispute.id,
+                    old_status=DisputeStatus.SENT.value,
+                    new_status=DisputeStatus.EXPIRED.value,
+                    note="Dispute expired: No carrier response received within 30 days.",
+                )
+                db.add(expired_event)
+                expired_count += 1
+
+        if expired_count > 0:
+            await db.commit()
+
+        return {"status": "ok", "expired_disputes_count": expired_count}
     except Exception:
         await db.rollback()
         raise
