@@ -68,6 +68,17 @@ export const useAuditInvoice = () => {
   });
 };
 
+export const useDeleteInvoice = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/invoices/${id}`),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoice", id] });
+    },
+  });
+};
+
 // ---------- Line Items ----------
 export const useLineItems = (invoiceId: number, options?: any) =>
   useQuery<any>({
