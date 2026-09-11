@@ -16,7 +16,9 @@ import {
   Eye, 
   Check, 
   AlertCircle,
-  FileText
+  FileText,
+  Clock,
+  TrendingUp
 } from "lucide-react";
 
 const Disputes = () => {
@@ -31,6 +33,33 @@ const Disputes = () => {
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all"); // 'all', 'draft', 'sent'
+
+  // Calculate KPI stats
+  const stats = useMemo(() => {
+    const list = disputes || [];
+    const totalCount = list.length;
+    const draftCount = list.filter((d: any) => d.status?.toUpperCase() === "DRAFT").length;
+    const sentCount = list.filter((d: any) => d.status?.toUpperCase() === "SENT").length;
+    
+    let totalClaimedAmount = 0;
+    list.forEach((d: any) => {
+      const match = d.draft_body?.match(/Total Overcharge:\s*\$([0-9,.]+)/i);
+      if (match && match[1]) {
+        const val = parseFloat(match[1].replace(/,/g, ""));
+        if (!isNaN(val)) totalClaimedAmount += val;
+      }
+    });
+
+    return {
+      totalCount,
+      draftCount,
+      sentCount,
+      totalClaimedAmount: totalClaimedAmount.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    };
+  }, [disputes]);
 
   // Selected dispute for modal detail view
   const [selectedDispute, setSelectedDispute] = useState<any | null>(null);
@@ -144,6 +173,54 @@ const Disputes = () => {
       <div>
         <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Claims Center</h2>
         <p className="text-sm text-slate-500 mt-1">Review AI-generated rate disputes, customize drafts, and submit claims to carriers.</p>
+      </div>
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        
+        {/* Total Claims */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
+          <div className="p-3.5 rounded-xl bg-indigo-50 text-indigo-600">
+            <Mail className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Claims</span>
+            <span className="text-2xl font-extrabold text-slate-800 mt-1 block">{stats.totalCount}</span>
+          </div>
+        </div>
+
+        {/* Pending Drafts */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
+          <div className="p-3.5 rounded-xl bg-amber-50 text-amber-600">
+            <Clock className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Pending Drafts</span>
+            <span className="text-2xl font-extrabold text-slate-800 mt-1 block">{stats.draftCount}</span>
+          </div>
+        </div>
+
+        {/* Submitted Claims */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
+          <div className="p-3.5 rounded-xl bg-emerald-50 text-emerald-600">
+            <Send className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Claims Submitted</span>
+            <span className="text-2xl font-extrabold text-slate-800 mt-1 block">{stats.sentCount}</span>
+          </div>
+        </div>
+
+        {/* Potential Recovery */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
+          <div className="p-3.5 rounded-xl bg-purple-50 text-purple-600">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Identified Overcharges</span>
+            <span className="text-2xl font-extrabold text-slate-800 mt-1 block">${stats.totalClaimedAmount}</span>
+          </div>
+        </div>
       </div>
 
       {/* Controls & Tabs */}
