@@ -6,4 +6,4 @@ from app.models.contract import Contract
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.line_item import LineItem
 from app.models.discrepancy import Discrepancy  
-from app.models.dispute import Dispute, DisputeStatus
+from app.models.dispute import Dispute, DisputeStatus, DisputeEvent
