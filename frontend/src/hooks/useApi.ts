@@ -136,10 +136,93 @@ export const useSendDispute = () => {
     mutationFn: (id: number) => api.post(`/disputes/${id}/send`).then((r) => r.data),
     onSuccess: (dispute) => {
       qc.invalidateQueries({ queryKey: ["disputes"] });
+      qc.invalidateQueries({ queryKey: ["allDisputes"] });
       if (dispute?.invoice_id) {
         qc.invalidateQueries({ queryKey: ["invoice", dispute.invoice_id] });
         qc.invalidateQueries({ queryKey: ["invoices"] });
       }
+    },
+  });
+};
+
+export const useDisputeTimeline = (disputeId?: number) =>
+  useQuery<any>({
+    queryKey: ["disputeTimeline", disputeId],
+    queryFn: () => api.get(`/disputes/${disputeId}/timeline`).then((r) => r.data),
+    enabled: !!disputeId,
+  });
+
+export const useUpdateDisputeStatus = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, new_status, note }: { id: number; new_status: string; note?: string }) =>
+      api.post(`/disputes/${id}/status`, { new_status, note }).then((r) => r.data),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["disputes"] });
+      qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["disputeTimeline", variables.id] });
+    },
+  });
+};
+
+export const useRecordCarrierResponse = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      recovered_amount,
+      response_date,
+      carrier_response,
+      rejection_reason,
+      status,
+      note,
+    }: {
+      id: number;
+      recovered_amount?: number;
+      response_date?: string;
+      carrier_response?: string;
+      rejection_reason?: string;
+      status?: string;
+      note?: string;
+    }) =>
+      api.post(`/disputes/${id}/record-response`, {
+        recovered_amount,
+        response_date,
+        carrier_response,
+        rejection_reason,
+        status,
+        note,
+      }).then((r) => r.data),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["disputes"] });
+      qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["disputeTimeline", variables.id] });
+    },
+  });
+};
+
+export const useEscalateDispute = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: number; note?: string }) =>
+      api.post(`/disputes/${id}/escalate`, { note }).then((r) => r.data),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["disputes"] });
+      qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["disputeTimeline", variables.id] });
+    },
+  });
+};
+
+export const useScheduleFollowUp = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, follow_up_date, note }: { id: number; follow_up_date: string; note?: string }) =>
+      api.post(`/disputes/${id}/follow-up`, { follow_up_date, note }).then((r) => r.data),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["disputes"] });
+      qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["disputeTimeline", variables.id] });
     },
   });
 };
