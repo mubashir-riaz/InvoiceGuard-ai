@@ -12,6 +12,7 @@ import {
   useAuditInvoice,
   useDeleteInvoice,
 } from "../hooks/useApi";
+import api from "../services/api";
 import StatusBadge from "../components/StatusBadge";
 import DataTable from "../components/DataTable";
 import { 
@@ -30,7 +31,8 @@ import {
   X,
   Check,
   RefreshCw,
-  Trash2
+  Trash2,
+  Download
 } from "lucide-react";
 
 const InvoiceDetail = () => {
@@ -66,6 +68,30 @@ const InvoiceDetail = () => {
   // Inline email editor state
   const [editingDisputeId, setEditingDisputeId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportCsv = async () => {
+    try {
+      setIsExporting(true);
+      const response = await api.get(`/invoices/${invoiceId}/export`, {
+        responseType: "blob",
+      });
+      const blob = new Blob([response.data], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit_invoice_${invoice?.invoice_number || invoiceId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Failed to export CSV:", err);
+      alert("Failed to export audit report. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleEditClick = (dispute: any) => {
     setEditingDisputeId(dispute.id);
@@ -201,6 +227,22 @@ const InvoiceDetail = () => {
               <span>Delete</span>
             </button>
 
+            {invoiceStatus !== "uploaded" && invoiceStatus !== "processing" && (
+              <button
+                onClick={handleExportCsv}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60 font-bold text-xs transition-all disabled:opacity-50"
+                title="Export Audit Report as CSV"
+              >
+                {isExporting ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span>Export CSV</span>
+              </button>
+            )}
+
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 font-bold">CURRENT STATUS:</span>
               <StatusBadge status={invoice.status} />
@@ -322,6 +364,20 @@ const InvoiceDetail = () => {
                   <FileSpreadsheet className="w-5 h-5 text-slate-400" />
                   <span>Extracted Line Items ({lineItems?.length || 0})</span>
                 </h3>
+                {lineItems && lineItems.length > 0 && (
+                  <button
+                    onClick={handleExportCsv}
+                    disabled={isExporting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60 font-bold text-xs transition-all disabled:opacity-50"
+                  >
+                    {isExporting ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    <span>Export Audit CSV</span>
+                  </button>
+                )}
               </div>
 
               {invoiceStatus === "uploaded" ? (
