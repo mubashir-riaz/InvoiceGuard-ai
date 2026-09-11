@@ -162,3 +162,105 @@ async def generate_dispute(invoice_id: int, db: AsyncSession = Depends(get_db)):
 
     await enqueue_task("generate_dispute", invoice_id)
     return {"message": "Dispute generation started", "invoice_id": invoice_id}
+
+import csv
+import io
+from fastapi.responses import Response
+
+@router.get("/{invoice_id}/export")
+async def export_invoice_audit_csv(invoice_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Export line items and audit discrepancy results for an invoice as a CSV file.
+    """
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    from app.models.line_item import LineItem
+    from app.models.discrepancy import Discrepancy
+
+    # Fetch line items
+    items_result = await db.execute(select(LineItem).where(LineItem.invoice_id == invoice_id))
+    line_items = items_result.scalars().all()
+
+    # Fetch discrepancies
+    disc_result = await db.execute(select(Discrepancy).where(Discrepancy.invoice_id == invoice_id))
+    discrepancies = disc_result.scalars().all()
+    disc_map = {d.line_item_id: d for d in discrepancies if d.line_item_id is not None}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write summary metadata rows
+    writer.writerow(["# INVOICE AUDIT REPORT"])
+    writer.writerow(["Invoice Number", invoice.invoice_number])
+    writer.writerow(["Carrier", invoice.carrier])
+    writer.writerow(["Invoice Date", str(invoice.invoice_date)])
+    writer.writerow(["Total Billed Amount", f"${invoice.total_amount:.2f}"])
+    status_label = invoice.status.value if hasattr(invoice.status, "value") else str(invoice.status)
+    writer.writerow(["Audit Status", status_label])
+    writer.writerow([])
+
+    # Write line items header
+    writer.writerow([
+        "Tracking Number",
+        "Description",
+        "Weight (kg)",
+        "Billed Amount ($)",
+        "Expected Amount ($)",
+        "Difference ($)",
+        "Discrepancy Reason",
+        "Audit Result"
+    ])
+
+    total_expected = 0.0
+    total_difference = 0.0
+
+    for item in line_items:
+        disc = disc_map.get(item.id)
+        if disc:
+            expected = disc.expected_amount
+            difference = disc.difference
+            reason = disc.reason or "Rate Mismatch"
+            audit_result = "OVERCHARGE" if difference > 0 else "UNDERCHARGE"
+        else:
+            expected = item.charged_amount or 0.0
+            difference = 0.0
+            reason = "None"
+            audit_result = "PASSED"
+
+        total_expected += expected
+        total_difference += difference
+
+        writer.writerow([
+            item.tracking_number or "N/A",
+            item.description or "",
+            f"{item.weight_kg:.2f}" if item.weight_kg is not None else "0.00",
+            f"{item.charged_amount:.2f}" if item.charged_amount is not None else "0.00",
+            f"{expected:.2f}",
+            f"{difference:.2f}",
+            reason,
+            audit_result
+        ])
+
+    # Summary row
+    writer.writerow([])
+    writer.writerow([
+        "TOTALS",
+        f"{len(line_items)} items",
+        "",
+        f"${invoice.total_amount:.2f}",
+        f"${total_expected:.2f}",
+        f"${total_difference:.2f}",
+        f"{len(discrepancies)} Discrepancies",
+        "CLAIMABLE" if total_difference > 0 else "BALANCED"
+    ])
+
+    csv_content = output.getvalue()
+    filename = f"audit_invoice_{invoice.invoice_number}.csv"
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
