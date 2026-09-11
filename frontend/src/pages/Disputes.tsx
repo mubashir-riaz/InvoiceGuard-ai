@@ -536,7 +536,7 @@ const Disputes = () => {
                 <span className="text-slate-400 uppercase tracking-wider text-[10px] block">Reference</span>
                 <a 
                   href={`/invoices/${selectedDispute.invoice_id}`}
-                  className="text-indigo-600 hover:underline font-bold text-sm block mt-0.5 flex items-center gap-1"
+                  className="text-indigo-600 hover:underline font-bold text-sm mt-0.5 flex items-center gap-1"
                 >
                   <span>Invoice #{selectedDispute.invoice_id}</span>
                   <ExternalLink className="w-3 h-3" />
