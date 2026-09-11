@@ -32,16 +32,33 @@ async def match_and_audit(ctx, invoice_id: int):
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
 
-        # 2. Fetch contract (if linked)
+        # 2. Fetch contract (if linked or fallback to matching client contract)
         contract = None
         if invoice.contract_id:
             contract = await db.get(Contract, invoice.contract_id)
+
+        if contract is None and invoice.client_id and invoice.carrier:
+            contract_query = (
+                select(Contract)
+                .where(Contract.client_id == invoice.client_id)
+                .where(Contract.carrier.ilike(invoice.carrier.strip()))
+            )
+            if invoice.invoice_date:
+                contract_query = contract_query.where(
+                    (Contract.effective_start <= invoice.invoice_date) &
+                    (Contract.effective_end >= invoice.invoice_date)
+                )
+            result = await db.execute(contract_query)
+            contract = result.scalars().first()
+            if contract:
+                # Link found contract to invoice for future reference
+                invoice.contract_id = contract.id
+
         if contract is None:
-            # No contract – we cannot audit. Mark as audited? Maybe set status to 'no_contract'.
-            # For now, just log and mark as audited with no discrepancies.
+            # No matching contract found – cannot perform rate audit
             invoice.status = InvoiceStatus.AUDITED
             await db.commit()
-            return {"status": "no_contract", "message": "Invoice has no linked contract"}
+            return {"status": "no_contract", "message": "Invoice has no linked contract or matching active tariff"}
 
         rate_details = contract.rate_details  
 
