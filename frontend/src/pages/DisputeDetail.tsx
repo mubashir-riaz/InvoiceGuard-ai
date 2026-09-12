@@ -247,7 +247,7 @@ const DisputeDetail: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100 text-xs font-semibold">
           <div>
             <span className="text-slate-400 uppercase tracking-wider text-[10px] block">Carrier</span>
-            <span className="text-slate-800 font-bold text-sm block mt-0.5 flex items-center gap-1">
+            <span className="text-slate-800 font-bold text-sm mt-0.5 flex items-center gap-1">
               <Building2 className="w-3.5 h-3.5 text-indigo-500" />
               <span>{dispute.carrier || "DHL Express"}</span>
             </span>
