@@ -6,6 +6,7 @@ import {
   useProcessInvoice,
   useAuditInvoice,
   useDeleteInvoice,
+  useDisputeAnalytics,
 } from "../hooks/useApi";
 import DataTable from "../components/DataTable";
 import StatusBadge from "../components/StatusBadge";
@@ -23,12 +24,16 @@ import {
   FileCheck,
   RefreshCw,
   Trash2,
-  X
+  X,
+  ArrowRight,
+  Clock,
+  DollarSign
 } from "lucide-react";
 
 const Dashboard = () => {
   const { data: invoices, isLoading, refetch } = useInvoices();
   const { data: clients } = useClients();
+  const disputeAnalytics = useDisputeAnalytics();
   const navigate = useNavigate();
   const process = useProcessInvoice();
   const audit = useAuditInvoice();
@@ -198,6 +203,32 @@ const Dashboard = () => {
         </button>
       </div>
 
+      {/* Awaiting Follow-up Alert Banner */}
+      {disputeAnalytics.pendingFollowupsCount > 0 && (
+        <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 flex-shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-extrabold text-amber-900">
+                Awaiting Carrier Follow-up ({disputeAnalytics.pendingFollowupsCount} claim{disputeAnalytics.pendingFollowupsCount === 1 ? "" : "s"})
+              </h4>
+              <p className="text-xs text-amber-700 font-medium mt-0.5">
+                Target carrier response deadline reached. Review and follow up or escalate these claims in Claims Center.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate("/disputes")}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto flex-shrink-0"
+          >
+            <span>Review Claims</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
@@ -243,6 +274,69 @@ const Dashboard = () => {
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Disputes Lodged</span>
             <span className="text-2xl font-extrabold text-slate-800 mt-1 block">{stats.disputedCount}</span>
           </div>
+        </div>
+      </div>
+
+      {/* Dispute Recovery & Lifecycle Widgets */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Pending Disputes Widget */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+          <div className="flex items-center gap-4">
+            <div className="p-3.5 rounded-xl bg-amber-50 text-amber-600">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Pending Disputes</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-extrabold text-slate-800">{disputeAnalytics.pendingCount}</span>
+                <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                  {disputeAnalytics.pendingCount > 0 ? `Oldest: ${disputeAnalytics.oldestPendingDays} days` : "All clear"}
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium block mt-0.5">
+                Claims currently in draft, sent, or under carrier review
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate("/disputes")}
+            className="hidden sm:flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline p-2"
+          >
+            <span>Claims</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Analytics Hook-in: Recovered Revenue & Win Rate */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+          <div className="flex items-center gap-4">
+            <div className="p-3.5 rounded-xl bg-emerald-50 text-emerald-600">
+              <DollarSign className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Recovered Capital</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-extrabold text-emerald-600">
+                  ${disputeAnalytics.totalRecovered.toFixed(2)}
+                </span>
+                <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60">
+                  {disputeAnalytics.successRate}% win rate
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium block mt-0.5">
+                {disputeAnalytics.totalAccepted} of {disputeAnalytics.totalSent} submitted claims successfully recovered
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate("/disputes")}
+            className="hidden sm:flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-800 hover:underline p-2"
+          >
+            <span>Details</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
