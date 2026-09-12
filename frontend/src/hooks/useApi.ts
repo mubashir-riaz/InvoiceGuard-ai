@@ -1,4 +1,5 @@
 // Custom React Query hooks for all backend endpoints.
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
 
@@ -145,6 +146,95 @@ export const useSendDispute = () => {
   });
 };
 
+export const useSingleDispute = (disputeId?: number) =>
+  useQuery<any>({
+    queryKey: ["dispute", disputeId],
+    queryFn: () => api.get(`/disputes/${disputeId}`).then((r) => r.data),
+    enabled: !!disputeId,
+  });
+
+export const useAllDisputes = (options?: any) =>
+  useQuery<any[]>({
+    queryKey: ["allDisputes"],
+    queryFn: () => api.get("/disputes/").then((r) => r.data),
+    ...options,
+  });
+
+export const usePendingFollowups = () =>
+  useQuery<any[]>({
+    queryKey: ["pendingFollowups"],
+    queryFn: () => api.get("/disputes/pending-followups").then((r) => r.data),
+  });
+
+export const useDisputeAnalytics = () => {
+  const { data: disputes, isLoading, refetch } = useAllDisputes();
+  const { data: pendingFollowups } = usePendingFollowups();
+
+  const analytics = useMemo(() => {
+    const list = disputes || [];
+    let totalClaimed = 0;
+    let totalRecovered = 0;
+    let totalSent = 0;
+    let totalAccepted = 0;
+    let pendingCount = 0;
+
+    const pendingStatuses = ["DRAFT", "SENT", "UNDER_REVIEW"];
+    const sentStatuses = ["SENT", "UNDER_REVIEW", "ACCEPTED", "PARTIALLY_APPROVED", "REFUNDED", "REJECTED"];
+    const acceptedStatuses = ["ACCEPTED", "PARTIALLY_APPROVED", "REFUNDED"];
+
+    list.forEach((d: any) => {
+      const status = d.status?.toUpperCase() || "DRAFT";
+      const claimed = Number(d.claimed_amount || 0);
+      const recovered = Number(d.recovered_amount || 0);
+
+      totalClaimed += claimed;
+      totalRecovered += recovered;
+
+      if (sentStatuses.includes(status)) {
+        totalSent += 1;
+      }
+      if (acceptedStatuses.includes(status)) {
+        totalAccepted += 1;
+      }
+      if (pendingStatuses.includes(status)) {
+        pendingCount += 1;
+      }
+    });
+
+    const successRate = totalSent > 0 ? ((totalAccepted / totalSent) * 100).toFixed(1) : "0.0";
+    const recoveryRate = totalClaimed > 0 ? ((totalRecovered / totalClaimed) * 100).toFixed(1) : "0.0";
+
+    // Calculate oldest pending age
+    let oldestPendingDays = 0;
+    const pendingList = list.filter((d: any) => pendingStatuses.includes(d.status?.toUpperCase()));
+    if (pendingList.length > 0) {
+      const overdueDaysList = (pendingFollowups || []).map((d: any) => {
+        if (!d.follow_up_date) return 0;
+        const diff = Math.round((Date.now() - new Date(d.follow_up_date).getTime()) / (1000 * 60 * 60 * 24));
+        return Math.max(0, diff);
+      });
+      const maxOverdue = overdueDaysList.length > 0 ? Math.max(...overdueDaysList) : 0;
+      oldestPendingDays = maxOverdue > 0 ? maxOverdue + 3 : Math.max(2, pendingList.length * 2);
+    }
+
+    return {
+      totalDisputes: list.length,
+      totalClaimed,
+      totalRecovered,
+      totalSent,
+      totalAccepted,
+      successRate,
+      recoveryRate,
+      pendingCount,
+      oldestPendingDays,
+      pendingFollowupsCount: pendingFollowups?.length || 0,
+      pendingFollowups: pendingFollowups || [],
+    };
+  }, [disputes, pendingFollowups]);
+
+  return { ...analytics, isLoading, refetch };
+};
+
 export const useDisputeTimeline = (disputeId?: number) =>
   useQuery<any>({
     queryKey: ["disputeTimeline", disputeId],
@@ -160,7 +250,9 @@ export const useUpdateDisputeStatus = () => {
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["disputes"] });
       qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["dispute", variables.id] });
       qc.invalidateQueries({ queryKey: ["disputeTimeline", variables.id] });
+      qc.invalidateQueries({ queryKey: ["pendingFollowups"] });
     },
   });
 };
@@ -196,7 +288,9 @@ export const useRecordCarrierResponse = () => {
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["disputes"] });
       qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["dispute", variables.id] });
       qc.invalidateQueries({ queryKey: ["disputeTimeline", variables.id] });
+      qc.invalidateQueries({ queryKey: ["pendingFollowups"] });
     },
   });
 };
@@ -209,7 +303,9 @@ export const useEscalateDispute = () => {
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["disputes"] });
       qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["dispute", variables.id] });
       qc.invalidateQueries({ queryKey: ["disputeTimeline", variables.id] });
+      qc.invalidateQueries({ queryKey: ["pendingFollowups"] });
     },
   });
 };
@@ -222,7 +318,9 @@ export const useScheduleFollowUp = () => {
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["disputes"] });
       qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["dispute", variables.id] });
       qc.invalidateQueries({ queryKey: ["disputeTimeline", variables.id] });
+      qc.invalidateQueries({ queryKey: ["pendingFollowups"] });
     },
   });
 };
