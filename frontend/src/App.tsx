@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import InvoiceDetail from "./pages/InvoiceDetail";
 import Disputes from "./pages/Disputes";
+import DisputeDetail from "./pages/DisputeDetail";
 import Clients from "./pages/clients";
 import Contracts from "./pages/contracts";
 
@@ -18,6 +19,7 @@ const App = () => (
           <Route path="/" element={<Dashboard />} />
           <Route path="/invoices/:id" element={<InvoiceDetail />} />
           <Route path="/disputes" element={<Disputes />} />
+          <Route path="/disputes/:id" element={<DisputeDetail />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/contracts" element={<Contracts />} />
         </Route>
