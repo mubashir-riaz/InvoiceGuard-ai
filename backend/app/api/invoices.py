@@ -2,6 +2,7 @@
 import os
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from typing import List, Optional
@@ -59,6 +60,26 @@ async def get_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return invoice
+
+@router.get("/{invoice_id}/pdf")
+async def get_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Serve the uploaded invoice PDF file for in-browser preview or download.
+    """
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    if not invoice.file_path or not os.path.exists(invoice.file_path):
+        raise HTTPException(status_code=404, detail="Invoice PDF file not found on server")
+
+    filename = os.path.basename(invoice.file_path)
+    return FileResponse(
+        path=invoice.file_path,
+        media_type="application/pdf",
+        filename=filename,
+        content_disposition_type="inline"
+    )
 
 from app.models.line_item import LineItem
 from app.schemas.line_item import LineItemResponse
