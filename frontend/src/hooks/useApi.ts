@@ -34,6 +34,11 @@ export const useInvoice = (id: number) =>
     },
   });
 
+export const getInvoicePdfUrl = (invoiceId: number): string => {
+  const base = api.defaults.baseURL || "http://localhost:8000";
+  return `${base.replace(/\/+$/, "")}/invoices/${invoiceId}/pdf`;
+};
+
 export const useUploadInvoice = () => {
   const qc = useQueryClient();
   return useMutation({
