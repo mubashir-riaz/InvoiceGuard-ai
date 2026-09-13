@@ -11,6 +11,7 @@ import {
   useProcessInvoice,
   useAuditInvoice,
   useDeleteInvoice,
+  getInvoicePdfUrl,
 } from "../hooks/useApi";
 import api from "../services/api";
 import StatusBadge from "../components/StatusBadge";
@@ -32,7 +33,10 @@ import {
   Check,
   RefreshCw,
   Trash2,
-  Download
+  Download,
+  Columns,
+  Layout,
+  ExternalLink,
 } from "lucide-react";
 
 const InvoiceDetail = () => {
@@ -47,6 +51,9 @@ const InvoiceDetail = () => {
   const audit = useAuditInvoice();
   const deleteInvoice = useDeleteInvoice();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // View mode switcher: split (side-by-side), data (data only), pdf (full document)
+  const [viewMode, setViewMode] = useState<"split" | "data" | "pdf">("split");
 
   const { data: invoice, isLoading: isInvoiceLoading } = useInvoice(invoiceId);
   const invoiceStatus = invoice?.status?.toLowerCase();
@@ -174,17 +181,76 @@ const InvoiceDetail = () => {
   return (
     <div className="space-y-6">
       {/* Top Breadcrumb Header */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold text-sm transition-colors bg-white px-3.5 py-2 rounded-xl border border-slate-200/60 shadow-sm"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Invoices</span>
-        </button>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold text-sm transition-colors bg-white px-3.5 py-2 rounded-xl border border-slate-200/60 shadow-sm"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Invoices</span>
+          </button>
+
+          {/* View Mode Controls */}
+          {invoice && (
+            <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("split")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === "split"
+                    ? "bg-white text-indigo-600 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Side-by-side comparison: PDF on left, data on right"
+              >
+                <Columns className="w-3.5 h-3.5" />
+                <span>Split View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("data")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === "data"
+                    ? "bg-white text-indigo-600 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Extracted line items and audit data only"
+              >
+                <Layout className="w-3.5 h-3.5" />
+                <span>Data Only</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("pdf")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === "pdf"
+                    ? "bg-white text-indigo-600 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Full-page original PDF preview"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>PDF Only</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {invoice && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Direct Open in New Tab Button */}
+            <a
+              href={getInvoicePdfUrl(invoiceId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:text-indigo-600 hover:bg-slate-50 font-bold text-xs transition-all shadow-2xs"
+              title="Open raw PDF document in new browser tab"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Open PDF</span>
+            </a>
+
             {(invoiceStatus === "uploaded" || 
               ((invoiceStatus === "extracted" || invoiceStatus === "error" || invoiceStatus === "audited") && 
                (!lineItems || lineItems.length === 0))) && (
