@@ -8,12 +8,15 @@ import {
   useUpdateDisputeStatus,
   useEscalateDispute,
   useScheduleFollowUp,
+  useDeleteDispute,
 } from "../hooks/useApi";
 import StatusTimeline from "../components/StatusTimeline";
 import RecoveryCard from "../components/RecoveryCard";
 import StatusDropdown from "../components/StatusDropdown";
 import ResponseForm from "../components/ResponseForm";
 import FollowUpBadge from "../components/FollowUpBadge";
+import ConfirmDialog from "../components/ConfirmDialog";
+import useConfirm from "../hooks/useConfirm";
 import {
   ArrowLeft,
   Mail,
@@ -31,6 +34,7 @@ import {
   RefreshCw,
   AlertCircle,
   Building2,
+  Trash2,
 } from "lucide-react";
 
 const getStatusBadge = (status: string) => {
@@ -83,6 +87,8 @@ const DisputeDetail: React.FC = () => {
   const updateStatus = useUpdateDisputeStatus();
   const escalateDispute = useEscalateDispute();
   const scheduleFollowUp = useScheduleFollowUp();
+  const deleteDispute = useDeleteDispute();
+  const { confirm, dialogProps } = useConfirm();
 
   // Local UI State
   const [showResponseModal, setShowResponseModal] = useState(false);
@@ -232,13 +238,35 @@ const DisputeDetail: React.FC = () => {
             </h1>
           </div>
 
-          <div className="flex items-center gap-3 self-start md:self-auto">
+          <div className="flex items-center gap-2.5 self-start md:self-auto">
             <button
               onClick={() => setShowResponseModal(true)}
               className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-100 transition-all flex items-center gap-1.5"
             >
               <MessageSquare className="w-3.5 h-3.5" />
               <span>Record Response</span>
+            </button>
+
+            <button
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Delete Dispute Claim",
+                  message: `Are you sure you want to delete Claim #CLAIM-${dispute.id} for invoice #${dispute.invoice_id}? All associated resolution history and timeline records will be permanently removed. This action cannot be undone.`,
+                  confirmText: "Delete Claim",
+                  isDestructive: true,
+                });
+                if (ok) {
+                  deleteDispute.mutate(dispute.id, {
+                    onSuccess: () => navigate("/disputes"),
+                  });
+                }
+              }}
+              disabled={deleteDispute.isPending}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 font-bold text-xs transition-all disabled:opacity-50 flex items-center gap-1.5"
+              title="Delete Dispute Claim"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
             </button>
           </div>
         </div>
@@ -619,6 +647,9 @@ const DisputeDetail: React.FC = () => {
           refetchTimeline();
         }}
       />
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

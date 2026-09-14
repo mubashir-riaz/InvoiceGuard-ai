@@ -330,6 +330,19 @@ export const useScheduleFollowUp = () => {
   });
 };
 
+export const useDeleteDispute = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/disputes/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["disputes"] });
+      qc.invalidateQueries({ queryKey: ["allDisputes"] });
+      qc.invalidateQueries({ queryKey: ["disputeAnalytics"] });
+      qc.invalidateQueries({ queryKey: ["pendingFollowups"] });
+    },
+  });
+};
+
 // ---------- Client Mutations ----------
 export const useCreateClient = () => {
   const qc = useQueryClient();

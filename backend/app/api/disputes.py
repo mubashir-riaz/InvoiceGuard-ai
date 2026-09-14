@@ -1,7 +1,7 @@
 # Endpoints to manage dispute emails and lifecycle tracking.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, delete
 from typing import List, Optional
 from datetime import date
 from app.core.database import get_db
@@ -259,3 +259,14 @@ async def get_dispute_timeline(dispute_id: int, db: AsyncSession = Depends(get_d
         current_status=dispute.status,
         events=events,
     )
+
+@router.delete("/{dispute_id}", status_code=204)
+async def delete_dispute(dispute_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a dispute claim and its associated audit timeline events."""
+    dispute = await db.get(Dispute, dispute_id)
+    if not dispute:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+
+    await db.execute(delete(DisputeEvent).where(DisputeEvent.dispute_id == dispute_id))
+    await db.delete(dispute)
+    await db.commit()

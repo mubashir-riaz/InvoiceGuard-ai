@@ -7,12 +7,15 @@ import {
   useUpdateDisputeStatus,
   useEscalateDispute,
   useScheduleFollowUp,
-  useDisputeAnalytics
+  useDisputeAnalytics,
+  useDeleteDispute,
 } from "../hooks/useApi";
 import DataTable from "../components/DataTable";
 import FollowUpBadge from "../components/FollowUpBadge";
 import ResponseForm from "../components/ResponseForm";
 import StatusDropdown from "../components/StatusDropdown";
+import ConfirmDialog from "../components/ConfirmDialog";
+import useConfirm from "../hooks/useConfirm";
 import { 
   Mail, 
   Send, 
@@ -28,7 +31,8 @@ import {
   ExternalLink,
   MessageSquare,
   ShieldCheck,
-  Percent
+  Percent,
+  Trash2,
 } from "lucide-react";
 
 export const getDisputeStatusBadge = (status: string) => {
@@ -59,6 +63,8 @@ const Disputes: React.FC = () => {
   const navigate = useNavigate();
   const { data: disputes, isLoading, refetch } = useAllDisputes();
   const analytics = useDisputeAnalytics();
+  const deleteDispute = useDeleteDispute();
+  const { confirm, dialogProps } = useConfirm();
 
   // Search, Filter & Sort State
   const [searchQuery, setSearchQuery] = useState("");
@@ -229,6 +235,26 @@ const Disputes: React.FC = () => {
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Reply</span>
           </button>
+
+          <button
+            onClick={async () => {
+              const ok = await confirm({
+                title: "Delete Dispute Claim",
+                message: `Are you sure you want to delete Claim #CLAIM-${row.id} for invoice #${row.invoice_id}? This will permanently remove the claim and its activity timeline. This action cannot be undone.`,
+                confirmText: "Delete Claim",
+                isDestructive: true,
+              });
+              if (ok) {
+                deleteDispute.mutate(row.id);
+              }
+            }}
+            disabled={deleteDispute.isPending}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
+            title="Delete dispute claim"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete</span>
+          </button>
         </div>
       )
     }
@@ -387,6 +413,9 @@ const Disputes: React.FC = () => {
           onSuccess={() => refetch()}
         />
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };
