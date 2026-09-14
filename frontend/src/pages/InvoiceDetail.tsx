@@ -17,6 +17,8 @@ import api from "../services/api";
 import StatusBadge from "../components/StatusBadge";
 import DataTable from "../components/DataTable";
 import PdfViewer from "../components/PdfViewer";
+import ConfirmDialog from "../components/ConfirmDialog";
+import useConfirm from "../hooks/useConfirm";
 import { 
   ArrowLeft, 
   FileText, 
@@ -53,7 +55,7 @@ const InvoiceDetail = () => {
   const process = useProcessInvoice();
   const audit = useAuditInvoice();
   const deleteInvoice = useDeleteInvoice();
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { confirm, dialogProps } = useConfirm();
 
   // View mode state: split (side-by-side), data (data only), pdf (full pdf)
   const [viewMode, setViewMode] = useState<"split" | "data" | "pdf">("split");
@@ -671,7 +673,21 @@ const InvoiceDetail = () => {
             )}
 
             <button
-              onClick={() => setShowDeleteModal(true)}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Delete Invoice",
+                  message: `Are you sure you want to delete invoice #${invoice.invoice_number}? All extracted line items, discrepancies, and dispute drafts will be permanently removed. This action cannot be undone.`,
+                  confirmText: "Delete Invoice",
+                  isDestructive: true,
+                });
+                if (ok) {
+                  deleteInvoice.mutate(invoiceId, {
+                    onSuccess: () => {
+                      navigate("/");
+                    },
+                  });
+                }
+              }}
               disabled={deleteInvoice.isPending}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 font-bold text-xs transition-all disabled:opacity-50"
               title="Delete Invoice"
@@ -773,60 +789,8 @@ const InvoiceDetail = () => {
         </>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && invoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-100 p-6 space-y-4 shadow-xl relative overflow-hidden animate-scale-up">
-            <button
-              type="button"
-              onClick={() => setShowDeleteModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 rounded-full p-1.5 hover:bg-slate-50 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-50 text-rose-600">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Delete Invoice</h3>
-                <p className="text-xs text-slate-400">Permanent removal.</p>
-              </div>
-            </div>
-
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Are you sure you want to delete invoice <span className="font-bold text-slate-800">#{invoice.invoice_number}</span>? All extracted line items, discrepancies, and dispute drafts will be deleted.
-            </p>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(false)}
-                disabled={deleteInvoice.isPending}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  deleteInvoice.mutate(invoiceId, {
-                    onSuccess: () => {
-                      navigate("/");
-                    },
-                  });
-                }}
-                disabled={deleteInvoice.isPending}
-                className="px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 font-bold text-xs shadow-sm hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {deleteInvoice.isPending && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>{deleteInvoice.isPending ? "Deleting..." : "Delete Invoice"}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

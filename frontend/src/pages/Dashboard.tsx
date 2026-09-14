@@ -11,6 +11,8 @@ import {
 import DataTable from "../components/DataTable";
 import StatusBadge from "../components/StatusBadge";
 import FileUpload from "../components/FileUpload";
+import ConfirmDialog from "../components/ConfirmDialog";
+import useConfirm from "../hooks/useConfirm";
 import { 
   Plus, 
   Search, 
@@ -38,8 +40,8 @@ const Dashboard = () => {
   const process = useProcessInvoice();
   const audit = useAuditInvoice();
   const deleteInvoice = useDeleteInvoice();
+  const { confirm, dialogProps } = useConfirm();
   const [showUpload, setShowUpload] = useState(false);
-  const [deletingInvoice, setDeletingInvoice] = useState<any | null>(null);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -172,9 +174,21 @@ const Dashboard = () => {
             </button>
 
             <button
-              onClick={() => setDeletingInvoice(row)}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Delete Invoice",
+                  message: `Are you sure you want to delete invoice #${row.invoice_number} (${row.carrier})? All associated line items, audit discrepancies, and dispute drafts will be permanently removed. This action cannot be undone.`,
+                  confirmText: "Delete Invoice",
+                  isDestructive: true,
+                });
+                if (ok) {
+                  deleteInvoice.mutate(row.id, {
+                    onSuccess: () => refetch(),
+                  });
+                }
+              }}
               disabled={deleteInvoice.isPending}
-              className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
               title="Delete Invoice"
             >
               <Trash2 className="w-4 h-4" />
@@ -410,61 +424,8 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deletingInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-100 p-6 space-y-4 shadow-xl relative overflow-hidden animate-scale-up">
-            <button
-              type="button"
-              onClick={() => setDeletingInvoice(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 rounded-full p-1.5 hover:bg-slate-50 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-50 text-rose-600">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Delete Invoice</h3>
-                <p className="text-xs text-slate-400">This action cannot be undone.</p>
-              </div>
-            </div>
-
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Are you sure you want to delete invoice <span className="font-bold text-slate-800">#{deletingInvoice.invoice_number}</span> ({deletingInvoice.carrier})? All associated line items, audit discrepancies, and dispute drafts will be permanently removed.
-            </p>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeletingInvoice(null)}
-                disabled={deleteInvoice.isPending}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  deleteInvoice.mutate(deletingInvoice.id, {
-                    onSuccess: () => {
-                      setDeletingInvoice(null);
-                      refetch();
-                    },
-                  });
-                }}
-                disabled={deleteInvoice.isPending}
-                className="px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 font-bold text-xs shadow-sm hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {deleteInvoice.isPending && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>{deleteInvoice.isPending ? "Deleting..." : "Delete Invoice"}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };
