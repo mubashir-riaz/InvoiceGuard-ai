@@ -106,6 +106,19 @@ const FileUpload = ({
     });
   };
 
+  // Check if prerequisites are met
+  const hasClients = Boolean(clients && clients.length > 0);
+  const hasContracts = Boolean(contracts && contracts.length > 0);
+  const hasClientContracts = filteredContracts.length > 0;
+  const canSubmit = Boolean(
+    hasClients &&
+    hasContracts &&
+    hasClientContracts &&
+    file &&
+    selectedClientId &&
+    selectedContractId
+  );
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -125,6 +138,19 @@ const FileUpload = ({
         <h3 className="text-xl font-bold text-slate-800">Upload Invoice</h3>
         <p className="text-sm text-slate-500 mt-1">Upload a carrier invoice PDF and enter key details to audit.</p>
       </div>
+
+      {(!hasClients || !hasContracts) && (
+        <div className="flex items-center gap-2.5 rounded-xl bg-amber-50 border border-amber-200/80 p-3.5 text-xs text-amber-800 font-medium">
+          <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+          <span>
+            {!hasClients && !hasContracts
+              ? "Please create a client and contract first before uploading an invoice."
+              : !hasClients
+              ? "Please create a client first before uploading an invoice."
+              : "Please create an active contract for your client first before uploading an invoice."}
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Client Selector */}
@@ -308,23 +334,44 @@ const FileUpload = ({
             Cancel
           </button>
         )}
-        <button
-          type="submit"
-          disabled={upload.isPending || !file || !selectedClientId || !selectedContractId}
-          className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-semibold text-sm shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {upload.isPending ? (
-            <>
-              <svg className="animate-spin -ml-1 mr-3 h-4.5 w-4.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Uploading...
-            </>
-          ) : (
-            "Upload Invoice"
+        <div className="relative group inline-block">
+          <button
+            type="submit"
+            disabled={upload.isPending || !canSubmit}
+            className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-semibold text-sm shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {upload.isPending ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-4.5 w-4.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Uploading...
+              </>
+            ) : (
+              "Upload Invoice"
+            )}
+          </button>
+          {!canSubmit && !upload.isPending && (
+            <div className="absolute right-0 bottom-full mb-2 hidden group-hover:flex flex-col items-center z-30 pointer-events-none">
+              <div className="bg-slate-900 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 border border-slate-700/60 animate-fade-in">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>
+                  {!hasClients || !hasContracts
+                    ? "Create contract and client first"
+                    : !selectedClientId
+                    ? "Select a client"
+                    : !selectedContractId
+                    ? "Create contract for this client first"
+                    : !file
+                    ? "Select an invoice PDF file"
+                    : "Fill in all required fields"}
+                </span>
+              </div>
+              <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1 border-r border-b border-slate-700/60" />
+            </div>
           )}
-        </button>
+        </div>
       </div>
     </form>
   );
