@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   useInvoices,
   useClients,
+  useContracts,
   useProcessInvoice,
   useAuditInvoice,
   useDeleteInvoice,
@@ -23,6 +24,7 @@ import {
   TrendingUp, 
   FileText, 
   AlertTriangle,
+  AlertCircle,
   FileCheck,
   RefreshCw,
   Trash2,
@@ -35,6 +37,7 @@ import {
 const Dashboard = () => {
   const { data: invoices, isLoading, refetch } = useInvoices();
   const { data: clients } = useClients();
+  const { data: contracts } = useContracts();
   const disputeAnalytics = useDisputeAnalytics();
   const navigate = useNavigate();
   const process = useProcessInvoice();
@@ -42,6 +45,24 @@ const Dashboard = () => {
   const deleteInvoice = useDeleteInvoice();
   const { confirm, dialogProps } = useConfirm();
   const [showUpload, setShowUpload] = useState(false);
+
+  // Prerequisites check for uploading invoices
+  const hasClients = Boolean(clients && clients.length > 0);
+  const hasContracts = Boolean(contracts && contracts.length > 0);
+  const canUpload = hasClients && hasContracts;
+
+  const uploadDisabledTooltip = useMemo(() => {
+    if (!hasClients && !hasContracts) {
+      return "Create contract and client first";
+    }
+    if (!hasClients) {
+      return "Create client first";
+    }
+    if (!hasContracts) {
+      return "Create contract first";
+    }
+    return "";
+  }, [hasClients, hasContracts]);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -208,13 +229,37 @@ const Dashboard = () => {
           <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Audit Dashboard</h2>
           <p className="text-sm text-slate-500 mt-1">Audit carrier freight bills, check discrepancy details, and file claims.</p>
         </div>
-        <button
-          onClick={() => setShowUpload(true)}
-          className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition-all self-start sm:self-auto"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Upload Invoice</span>
-        </button>
+        {/* Upload Invoice Action Button with Contract & Client Pre-requisite Guard */}
+        <div className="relative group self-start sm:self-auto inline-block">
+          <button
+            type="button"
+            onClick={() => {
+              if (canUpload) {
+                setShowUpload(true);
+              }
+            }}
+            disabled={!canUpload}
+            aria-disabled={!canUpload}
+            className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              canUpload
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 hover:shadow-indigo-200 cursor-pointer"
+                : "bg-indigo-600/70 text-white/90 shadow-none cursor-not-allowed"
+            }`}
+          >
+            <Plus className="w-5 h-5" />
+            <span>Upload Invoice</span>
+          </button>
+
+          {!canUpload && (
+            <div className="absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 bottom-full mb-2 hidden group-hover:flex flex-col items-center z-30 pointer-events-none">
+              <div className="bg-slate-900 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 border border-slate-700/60 animate-fade-in">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>{uploadDisabledTooltip}</span>
+              </div>
+              <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1 border-r border-b border-slate-700/60" />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Awaiting Follow-up Alert Banner */}
