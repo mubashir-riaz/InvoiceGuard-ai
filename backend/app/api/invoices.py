@@ -9,6 +9,8 @@ from typing import List, Optional
 from datetime import date
 from app.core.database import get_db
 from app.models.invoice import Invoice, InvoiceStatus
+from app.models.client import Client
+from app.models.contract import Contract
 from app.schemas.invoice import InvoiceCreate, InvoiceResponse
 from app.services.queue import enqueue_task
 from app.core.config import settings  
@@ -29,6 +31,19 @@ async def upload_invoice(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
+    # Validate client existence
+    client = await db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=400, detail="Client not found. Please create a client first.")
+
+    # Validate contract existence
+    if not contract_id:
+        raise HTTPException(status_code=400, detail="A contract is required to upload an invoice.")
+    
+    contract = await db.get(Contract, contract_id)
+    if not contract or contract.client_id != client_id:
+        raise HTTPException(status_code=400, detail="Valid contract associated with this client was not found.")
+
     # Save file to disk
     file_path = os.path.join(UPLOAD_DIR, f"{invoice_number}_{file.filename}")
     with open(file_path, "wb") as buffer:
