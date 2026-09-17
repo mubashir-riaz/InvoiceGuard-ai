@@ -1,19 +1,107 @@
-# Core background task: extract line items from an invoice PDF using a Vision LLM.
-# Supports multiple LLM providers (Groq and Gemini) selectable via LLM_PROVIDER env var.
+# Core background task: extract line items from an invoice PDF.
+# Supports digital text extraction via pypdf, Vision/Text LLMs (Groq and Gemini),
+# and a deterministic rule-based invoice parser fallback.
 import json
 import os
+import re
 import base64
 from io import BytesIO
-from pdf2image import convert_from_path
 from sqlalchemy import select
 from db import get_session
 from models import Invoice, InvoiceStatus, LineItem
 from config import LLM_PROVIDER, GROQ_API_KEY, GEMINI_API_KEY, UPLOAD_DIR
 
-# 1. LLM Client Abstraction
+try:
+    from pypdf import PdfReader
+except ImportError:
+    PdfReader = None
+
+try:
+    from pdf2image import convert_from_path
+except ImportError:
+    convert_from_path = None
+
+
+# 1. Deterministic Rule-Based Fallback Parser
+
+def extract_line_items_from_text(text: str) -> list[dict]:
+    """
+    Deterministic rule-based parser for text extracted from invoice PDFs.
+    Handles freight invoices with item blocks, tracking numbers, weights, and charged amounts.
+    """
+    if not text or not text.strip():
+        return []
+
+    items = []
+
+    # Strategy 1: Block-style shipment items (e.g., Item 1: Tracking # ... Description ... Weight ... Charged Amount ...)
+    blocks = re.split(r'(?:Item\s+\d+|SHIPMENT\s+\d+|Package\s+\d+|Shipment\s+Item\s+\d+)[:\.\s\-]+', text, flags=re.IGNORECASE)
+    if len(blocks) > 1:
+        for b in blocks[1:]:
+            # Ignore trailer / summary parts like TOTAL CHARGED
+            b = re.split(r'TOTAL\s+(?:CHARGED|DUE|AMOUNT|INVOICE)', b, flags=re.IGNORECASE)[0]
+
+            trk_match = re.search(r'Tracking\s*(?:#|Number|No|Num)?\s*[:\s#]\s*([A-Za-z0-9\-]+)', b, re.IGNORECASE)
+            desc_match = re.search(r'Description\s*[:\s]\s*([^\n\r]+)', b, re.IGNORECASE)
+            wt_match = re.search(r'Weight\s*[:\s]\s*([\d\.]+)\s*(?:kg|lbs|g)?', b, re.IGNORECASE)
+            # Amount regex with proper priority
+            amt_match = re.search(r'(?:Charged\s*Amount|Total\s*Charged|Amount\s*Charged|Charged|Amount|Rate|Cost|Price|Total)\s*[:\s#\-]*\$?\s*([\d\.,]+)', b, re.IGNORECASE)
+            if not amt_match:
+                amt_match = re.search(r'\$\s*([\d\.,]+)', b)
+
+            if trk_match or amt_match or desc_match:
+                wt_val = float(wt_match.group(1)) if wt_match else None
+                amt_val = float(amt_match.group(1).replace(',', '')) if amt_match else None
+                trk_val = trk_match.group(1).strip() if trk_match else None
+                desc_val = desc_match.group(1).strip() if desc_match else "Freight Shipment"
+
+                if trk_val or amt_val is not None:
+                    items.append({
+                        "tracking_number": trk_val,
+                        "description": desc_val,
+                        "weight_kg": wt_val,
+                        "charged_amount": amt_val,
+                    })
+
+    if items:
+        return items
+
+    # Strategy 2: Tabular / Line-by-line format
+    lines = text.splitlines()
+    for line in lines:
+        line_clean = line.strip()
+        if not line_clean or line_clean.startswith("#") or line_clean.startswith("---") or line_clean.startswith("==="):
+            continue
+        if re.search(r'^(?:TOTAL|SUBTOTAL|INVOICE|DATE|CARRIER|CLIENT|SHIPMENT DETAILS)', line_clean, re.IGNORECASE):
+            continue
+
+        # Line pattern: Tracking (optional) ... Description ... Weight ... Amount
+        line_match = re.search(r'(?:([A-Za-z0-9\-]{5,})\s+)?(.+?)\s+([\d\.]+)\s*(?:kg|lbs|g)?\s+\$?\s*([\d\.,]+)', line_clean, re.IGNORECASE)
+        if line_match:
+            trk = line_match.group(1).strip() if line_match.group(1) else None
+            desc = line_match.group(2).strip()
+            wt = float(line_match.group(3))
+            amt = float(line_match.group(4).replace(',', ''))
+
+            # Avoid matching headers
+            if desc.lower() not in ["description", "item", "details", "shipment details"]:
+                items.append({
+                    "tracking_number": trk,
+                    "description": desc,
+                    "weight_kg": wt,
+                    "charged_amount": amt,
+                })
+
+    return items
+
+
+# 2. LLM Client Abstraction
 
 class BaseLLMClient:
     """Abstract base for LLM providers."""
+    def extract_from_text(self, text: str) -> dict:
+        raise NotImplementedError
+
     def extract_from_image(self, image_base64: str) -> dict:
         raise NotImplementedError
 
@@ -23,6 +111,52 @@ class GroqClient(BaseLLMClient):
     def __init__(self, api_key: str):
         from groq import Groq
         self.client = Groq(api_key=api_key)
+
+    def extract_from_text(self, text: str) -> dict:
+        candidate_models = [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "llama3-70b-8192",
+            "mixtral-8x7b-32768"
+        ]
+        last_err = None
+        for model in candidate_models:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a freight invoice auditor. Extract all line items from the invoice text. "
+                                "Return ONLY a JSON object with key 'line_items' (array of objects). "
+                                "Each object must have: tracking_number (string|null), description (string|null), "
+                                "weight_kg (float|null), charged_amount (float|null). "
+                                "Do NOT include any extra text."
+                            )
+                        },
+                        {
+                            "role": "user",
+                            "content": f"Extract all line items from this invoice:\n\n{text}"
+                        }
+                    ],
+                    temperature=0.0,
+                    response_format={"type": "json_object"}
+                )
+                raw_text = response.choices[0].message.content.strip()
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                if raw_text.startswith("```"):
+                    raw_text = raw_text[3:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                return json.loads(raw_text.strip())
+            except Exception as e:
+                last_err = e
+                continue
+        if last_err:
+            raise last_err
+        raise RuntimeError("No line items could be extracted with Groq.")
 
     def extract_from_image(self, image_base64: str) -> dict:
         candidate_models = [
@@ -81,6 +215,34 @@ class GeminiClient(BaseLLMClient):
         self.client = genai.Client(api_key=api_key)
         self.types = types
 
+    def extract_from_text(self, text: str) -> dict:
+        config = self.types.GenerateContentConfig(
+            temperature=0.0,
+            response_mime_type="application/json",
+        )
+        response = self.client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                (
+                    "Extract every line item from this freight invoice text. "
+                    "Return ONLY a JSON object with key 'line_items' (array of objects). "
+                    "Each object must have: tracking_number (string or null), description (string or null), "
+                    "weight_kg (float or null), charged_amount (float or null). "
+                    "Use null for missing values. Do NOT include any other text."
+                ),
+                text
+            ],
+            config=config,
+        )
+        raw_text = (response.text or "").strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.startswith("```"):
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+        return json.loads(raw_text.strip())
+
     def extract_from_image(self, image_base64: str) -> dict:
         image_bytes = base64.b64decode(image_base64)
 
@@ -113,13 +275,16 @@ class GeminiClient(BaseLLMClient):
         return json.loads(raw_text.strip())
 
 
-# 2. ARQ Task – Main Extraction
+# 3. ARQ Task – Main Extraction
 
 async def extract_invoice_lines(ctx, invoice_id: int):
     """
-    ARQ task: 1. Load invoice, 2. Convert PDF to images, 3. Call Vision LLM,
-              4. Parse JSON, 5. Store line items, 6. Update status.
-    Supports both Groq and Gemini backends with automatic mock data fallback on failure.
+    ARQ task: 
+    1. Load invoice from DB.
+    2. Extract digital text from PDF (or convert to image for scanned docs).
+    3. Call Text/Vision LLM or deterministic parser.
+    4. Store real extracted line items in DB.
+    5. Update status to EXTRACTED (or ERROR if unextractable).
     """
     provider = (LLM_PROVIDER or "groq").lower()
     llm = None
@@ -139,92 +304,103 @@ async def extract_invoice_lines(ctx, invoice_id: int):
 
         all_line_items = []
 
-        try:
-            if not invoice.file_path:
-                raise ValueError("No PDF file attached")
+        if not invoice.file_path:
+            raise ValueError("No PDF file attached to invoice")
 
-            pdf_path = invoice.file_path
-            if not os.path.exists(pdf_path):
-                raise FileNotFoundError(f"PDF not found at {pdf_path}")
+        pdf_path = invoice.file_path
+        if not os.path.exists(pdf_path):
+            raise FileNotFoundError(f"PDF not found at {pdf_path}")
 
-            # 2. Convert PDF pages to images (200 DPI for quality)
-            images = convert_from_path(pdf_path, dpi=200)
-            if not images:
-                raise RuntimeError("No pages extracted from PDF")
+        # 2. Try digital text extraction first via pypdf
+        extracted_text = ""
+        if PdfReader is not None:
+            try:
+                reader = PdfReader(pdf_path)
+                for page in reader.pages:
+                    page_text = page.extract_text() or ""
+                    if page_text:
+                        extracted_text += page_text + "\n"
+            except Exception as pdf_err:
+                print(f"pypdf extraction warning for invoice {invoice_id}: {pdf_err}")
 
-            # 3. Process each page
-            for page_num, image in enumerate(images, start=1):
-                # Convert PIL Image to base64 PNG
-                buffered = BytesIO()
-                image.save(buffered, format="PNG")
-                img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        # 3. Process extracted text if available
+        if extracted_text.strip():
+            # A) Try LLM text extraction first if configured
+            if llm:
+                try:
+                    data = llm.extract_from_text(extracted_text)
+                    items = data.get("line_items", [])
+                    if items:
+                        all_line_items.extend(items)
+                except Exception as llm_err:
+                    print(f"LLM text extraction failed for invoice {invoice_id}: {llm_err}. Using rule-based text parser.")
 
-                # 4. Call vision LLM (provider-agnostic)
-                if not llm:
-                    raise RuntimeError("No LLM client configured (missing API keys for provider).")
-                data = llm.extract_from_image(img_base64)
-                items = data.get("line_items", [])
-                for item in items:
-                    item["page"] = page_num
-                all_line_items.extend(items)
+            # B) If LLM did not return items, use deterministic text parser
+            if not all_line_items:
+                parsed_items = extract_line_items_from_text(extracted_text)
+                if parsed_items:
+                    all_line_items.extend(parsed_items)
 
-        except Exception as llm_or_pdf_err:
-            # Log the error and proceed to generate fallback items
-            print(f"LLM or PDF extraction failed: {llm_or_pdf_err}. Generating fallback mock data.")
+        # 4. If no text found (scanned image PDF), fallback to pdf2image + Vision LLM
+        if not all_line_items and convert_from_path is not None and llm is not None:
+            try:
+                images = convert_from_path(pdf_path, dpi=200)
+                for page_num, image in enumerate(images, start=1):
+                    buffered = BytesIO()
+                    image.save(buffered, format="PNG")
+                    img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-        # If no items were extracted (due to failure or empty results)
+                    data = llm.extract_from_image(img_base64)
+                    items = data.get("line_items", [])
+                    for item in items:
+                        item["page"] = page_num
+                    all_line_items.extend(items)
+            except Exception as vision_err:
+                print(f"Vision LLM extraction failed for invoice {invoice_id}: {vision_err}")
+
+        # 5. Check if items were extracted
         if not all_line_items:
-            # Let's generate fallback line items based on contract if available
-            contract = None
-            if invoice.contract_id:
-                from models import Contract
-                contract = await db.get(Contract, invoice.contract_id)
+            # Mark invoice as ERROR if nothing could be extracted
+            invoice.status = InvoiceStatus.ERROR
+            await db.commit()
+            return {"status": "error", "message": "No line items could be extracted from the invoice PDF"}
 
-            base_rate = 25.0
-            per_kg = 2.0
-            if contract and contract.rate_details:
-                base_rate = contract.rate_details.get("base_rate", base_rate)
-                per_kg = contract.rate_details.get("per_kg", per_kg)
-
-            all_line_items = [
-                {
-                    "tracking_number": f"TRK{invoice.id}001",
-                    "description": f"{invoice.carrier} Ground Shipment",
-                    "weight_kg": 12.5,
-                    "charged_amount": base_rate + per_kg * 12.5,
-                },
-                {
-                    "tracking_number": f"TRK{invoice.id}002",
-                    "description": f"{invoice.carrier} Express Shipment",
-                    "weight_kg": 28.0,
-                    "charged_amount": base_rate + per_kg * 28.0 + 45.0,  # Overcharged by $45.00
-                },
-                {
-                    "tracking_number": f"TRK{invoice.id}003",
-                    "description": f"{invoice.carrier} Heavy Freight",
-                    "weight_kg": 150.0,
-                    "charged_amount": base_rate + per_kg * 150.0,
-                }
-            ]
-
-        # 5. Store line items in DB
+        # 6. Store extracted real line items in DB
         for item in all_line_items:
+            trk = item.get("tracking_number")
+            desc = item.get("description")
+            wt = item.get("weight_kg")
+            amt = item.get("charged_amount")
+
+            # Clean and sanitize types
+            if wt is not None:
+                try:
+                    wt = float(wt)
+                except (ValueError, TypeError):
+                    wt = None
+
+            if amt is not None:
+                try:
+                    amt = float(amt)
+                except (ValueError, TypeError):
+                    amt = 0.0
+
             line = LineItem(
                 invoice_id=invoice.id,
-                tracking_number=item.get("tracking_number"),
-                description=item.get("description"),
-                weight_kg=item.get("weight_kg"),
-                charged_amount=item.get("charged_amount"),
+                tracking_number=str(trk).strip() if trk else None,
+                description=str(desc).strip() if desc else "Freight Shipment",
+                weight_kg=wt,
+                charged_amount=amt,
             )
             db.add(line)
 
-        # 6. Mark as EXTRACTED
+        # 7. Mark as EXTRACTED
         invoice.status = InvoiceStatus.EXTRACTED
         await db.commit()
         return {"status": "success", "line_items_count": len(all_line_items)}
 
     except Exception as e:
-        # Mark as ERROR and re-raise (only if database fetch/update itself fails)
+        # Mark as ERROR and re-raise
         try:
             invoice = await db.get(Invoice, invoice_id)
             if invoice:
