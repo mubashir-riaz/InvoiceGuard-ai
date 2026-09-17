@@ -1,11 +1,30 @@
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
-import { Menu, User, Bell, Database } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeftOpen, Bell, Database } from "lucide-react";
 
 const Layout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem("invoiceguard_sidebar_open");
+      return saved !== null ? saved === "true" : true;
+    } catch {
+      return true;
+    }
+  });
   const location = useLocation();
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("invoiceguard_sidebar_open", String(next));
+      } catch {
+        // ignore localStorage errors if disabled
+      }
+      return next;
+    });
+  };
 
   // Get friendly name for current page title
   const getPageTitle = () => {
@@ -23,18 +42,30 @@ const Layout = () => {
       {/* Navigation Sidebar */}
       <Navbar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main content area */}
-      <div className="lg:pl-64 min-h-screen flex flex-col transition-all duration-200">
+      {/* Main content area with smooth dynamic padding */}
+      <div 
+        className={`min-h-screen flex flex-col transition-all duration-300 ease-in-out ${
+          sidebarOpen ? "lg:pl-64" : "lg:pl-0"
+        }`}
+      >
         {/* Header Bar */}
-        <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-white/80 backdrop-blur-md border-b border-slate-100">
-          {/* Left section: Hamburger & Title */}
-          <div className="flex items-center gap-4">
+        <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 sm:px-6 bg-white/80 backdrop-blur-md border-b border-slate-100 transition-all duration-300">
+          {/* Left section: Toggle Sidebar & Title */}
+          <div className="flex items-center gap-3 sm:gap-4">
             <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+              onClick={toggleSidebar}
+              className="p-2 rounded-xl text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
-              <Menu className="w-5 h-5" />
+              {sidebarOpen ? (
+                <PanelLeftClose className="w-5 h-5 hidden lg:block text-slate-600" />
+              ) : (
+                <PanelLeftOpen className="w-5 h-5 hidden lg:block text-indigo-600" />
+              )}
+              <Menu className="w-5 h-5 lg:hidden" />
             </button>
+
             <h1 className="text-lg font-bold text-slate-800 tracking-tight">
               {getPageTitle()}
             </h1>
@@ -71,7 +102,7 @@ const Layout = () => {
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto transition-all duration-300">
           <Outlet />
         </main>
       </div>
