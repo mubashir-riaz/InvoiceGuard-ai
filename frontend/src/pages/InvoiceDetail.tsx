@@ -160,14 +160,26 @@ const InvoiceDetail = () => {
     },
     {
       header: "Difference",
-      accessor: (row: any) => (
-        <span className="font-extrabold text-rose-600">${Number(row.difference).toFixed(2)}</span>
-      ),
+      accessor: (row: any) => {
+        const diff = Number(row.difference);
+        const isOver = diff > 0;
+        return (
+          <span className={`font-extrabold ${isOver ? "text-rose-600" : "text-amber-600"}`}>
+            {isOver ? `+$${diff.toFixed(2)}` : `-$${Math.abs(diff).toFixed(2)}`}
+          </span>
+        );
+      },
     },
     { 
       header: "Reason", 
       accessor: (row: any) => (
-        <span className="text-slate-600 text-xs bg-slate-100 px-2 py-1 rounded font-semibold">{row.reason}</span>
+        <span className={`text-[11px] px-2.5 py-1 rounded-md font-bold uppercase tracking-wider ${
+          row.reason === "Overcharge" 
+            ? "bg-rose-50 text-rose-700 border border-rose-200/60" 
+            : "bg-amber-50 text-amber-700 border border-amber-200/60"
+        }`}>
+          {row.reason}
+        </span>
       ) 
     },
   ];
@@ -181,8 +193,10 @@ const InvoiceDetail = () => {
     );
   }
 
-  // Calculate sum of discrepancies
-  const totalDiscrepancyAmount = discrepancies?.reduce((sum: number, d: any) => sum + Number(d.difference || 0), 0) || 0;
+  // Calculate discrepancy stats
+  const hasDiscrepancies = Boolean(discrepancies && discrepancies.length > 0);
+  const totalOverchargeAmount = discrepancies?.reduce((sum: number, d: any) => sum + (Number(d.difference) > 0 ? Number(d.difference) : 0), 0) || 0;
+  const totalDiscrepancyAmount = discrepancies?.reduce((sum: number, d: any) => sum + Math.abs(Number(d.difference || 0)), 0) || 0;
 
   const renderOverviewCard = () => (
     <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
@@ -385,13 +399,13 @@ const InvoiceDetail = () => {
       {/* AI Auditor Summary Block */}
       {invoiceStatus === "audited" || invoiceStatus === "disputed" ? (
         <div className={`p-6 rounded-2xl border shadow-sm space-y-4 ${
-          totalDiscrepancyAmount > 0 
+          hasDiscrepancies 
             ? "bg-rose-50/30 border-rose-100 text-rose-900" 
             : "bg-emerald-50/20 border-emerald-100 text-emerald-900"
         }`}>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-extrabold uppercase tracking-wider flex items-center gap-2">
-              {totalDiscrepancyAmount > 0 ? (
+              {hasDiscrepancies ? (
                 <>
                   <ShieldAlert className="w-5 h-5 text-rose-500" />
                   <span>Audit: Discrepancy Found</span>
@@ -405,18 +419,22 @@ const InvoiceDetail = () => {
             </h3>
           </div>
 
-          {totalDiscrepancyAmount > 0 ? (
+          {hasDiscrepancies ? (
             <>
               <p className="text-sm leading-relaxed">
-                AI audited this invoice against the carrier contract terms and detected overcharged differences.
+                AI audited this invoice against the carrier contract terms and detected rate differences ({discrepancies?.length} flag{discrepancies?.length === 1 ? "" : "s"}).
               </p>
               <div className="bg-white/80 backdrop-blur border border-rose-100 p-4 rounded-xl flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-rose-600 block uppercase tracking-wider">Total Discrepancy</span>
-                  <span className="text-xl font-extrabold text-rose-700 mt-0.5 block">${totalDiscrepancyAmount.toFixed(2)}</span>
+                  <span className="text-[10px] font-bold text-rose-600 block uppercase tracking-wider">
+                    {totalOverchargeAmount > 0 ? "Claimable Overcharge" : "Total Flagged Difference"}
+                  </span>
+                  <span className="text-xl font-extrabold text-rose-700 mt-0.5 block">
+                    ${(totalOverchargeAmount > 0 ? totalOverchargeAmount : totalDiscrepancyAmount).toFixed(2)}
+                  </span>
                 </div>
                 <div className="px-3 py-1 bg-rose-500 text-white font-bold text-xs rounded-lg">
-                  CLAIMABLE
+                  {totalOverchargeAmount > 0 ? "CLAIMABLE" : "FLAGGED"}
                 </div>
               </div>
             </>
