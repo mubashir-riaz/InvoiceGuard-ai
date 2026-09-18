@@ -26,25 +26,30 @@ except ImportError:
 
 def extract_line_items_from_text(text: str) -> list[dict]:
     """
-    Deterministic rule-based parser for text extracted from invoice PDFs.
-    Handles freight invoices with item blocks, tracking numbers, weights, and charged amounts.
+    Universal, multiline-aware freight invoice parser.
+    Extracts tracking number, description, weight, and charged amount from any PDF text layout,
+    including wrapped table cells and multi-line item records.
     """
     if not text or not text.strip():
         return []
 
     items = []
 
-    # Strategy 1: Block-style shipment items (e.g., Item 1: Tracking # ... Description ... Weight ... Charged Amount ...)
-    blocks = re.split(r'(?:Item\s+\d+|SHIPMENT\s+\d+|Package\s+\d+|Shipment\s+Item\s+\d+)[:\.\s\-]+', text, flags=re.IGNORECASE)
+    # -------------------------------------------------------------
+    # Strategy 1: Explicit Item / Shipment / Package block format
+    # -------------------------------------------------------------
+    blocks = re.split(
+        r'(?:(?:^|\n)\s*(?:Item\s+\d+|SHIPMENT\s+\d+|Package\s+\d+|Shipment\s+Item\s+\d+)[:\.\s\-]*)',
+        text,
+        flags=re.IGNORECASE
+    )
     if len(blocks) > 1:
         for b in blocks[1:]:
-            # Ignore trailer / summary parts like TOTAL CHARGED
-            b = re.split(r'TOTAL\s+(?:CHARGED|DUE|AMOUNT|INVOICE)', b, flags=re.IGNORECASE)[0]
+            b = re.split(r'(?:TOTAL\s+(?:CHARGED|DUE|AMOUNT|INVOICE)|SUBTOTAL)', b, flags=re.IGNORECASE)[0]
 
-            trk_match = re.search(r'Tracking\s*(?:#|Number|No|Num)?\s*[:\s#]\s*([A-Za-z0-9\-]+)', b, re.IGNORECASE)
-            desc_match = re.search(r'Description\s*[:\s]\s*([^\n\r]+)', b, re.IGNORECASE)
-            wt_match = re.search(r'Weight\s*[:\s]\s*([\d\.]+)\s*(?:kg|lbs|g)?', b, re.IGNORECASE)
-            # Amount regex with proper priority
+            trk_match = re.search(r'Tracking\s*(?:#|Number|No|Num)?\s*[:\s#]*([A-Za-z0-9\-]+)', b, re.IGNORECASE)
+            desc_match = re.search(r'Description\s*[:\s]*([^\n\r]+)', b, re.IGNORECASE)
+            wt_match = re.search(r'Weight\s*[:\s]*([\d\.]+)\s*(?:kg|lbs|g)?', b, re.IGNORECASE)
             amt_match = re.search(r'(?:Charged\s*Amount|Total\s*Charged|Amount\s*Charged|Charged|Amount|Rate|Cost|Price|Total)\s*[:\s#\-]*\$?\s*([\d\.,]+)', b, re.IGNORECASE)
             if not amt_match:
                 amt_match = re.search(r'\$\s*([\d\.,]+)', b)
@@ -66,31 +71,114 @@ def extract_line_items_from_text(text: str) -> list[dict]:
     if items:
         return items
 
-    # Strategy 2: Tabular / Line-by-line format
+    # -------------------------------------------------------------
+    # Strategy 2: Multi-line / Tracking Number boundary segmentation
+    # Finds lines/tokens starting with tracking numbers (e.g. DH..., FX..., 1Z..., TRK..., etc.)
+    # and extracts all content up to the next tracking number or TOTAL line.
+    # -------------------------------------------------------------
+    body_text = re.split(r'(?:TOTAL\s+(?:CHARGED|DUE|AMOUNT)|TOTAL\s*:\s*\$|SUBTOTAL)', text, flags=re.IGNORECASE)[0]
+
+    # Pattern identifying tracking numbers at token/line starts (5 to 30 alphanumeric characters with digits)
+    tracking_pattern = r'([A-Za-z]{1,4}\d{5,}[A-Za-z0-9\-]*|1Z[A-Za-z0-9]{16}|TRK[A-Za-z0-9\-]+)'
+    
+    tracking_matches = list(re.finditer(tracking_pattern, body_text))
+    
+    if tracking_matches:
+        for idx, match in enumerate(tracking_matches):
+            start_pos = match.start()
+            end_pos = tracking_matches[idx + 1].start() if idx + 1 < len(tracking_matches) else len(body_text)
+            chunk = body_text[start_pos:end_pos].strip()
+            
+            trk_number = match.group(1).strip()
+            
+            # Find dollar amount in chunk
+            amt_match = re.search(r'\$\s*([\d\.,]+)', chunk)
+            if not amt_match:
+                amt_match = re.search(r'(?:^|\s)([\d,]+\.\d{2})(?:\s|$)', chunk)
+            
+            amt_val = float(amt_match.group(1).replace(',', '')) if amt_match else None
+            
+            # Find weight in chunk (e.g. 250.0 kg, 85.5 kg, 3.0 kg, 250.0\nkg, or 250.0)
+            wt_match = re.search(r'([\d\.]+)\s*(?:kg|lbs|g)\b', chunk, re.IGNORECASE)
+            if not wt_match:
+                # Look for weight before amount
+                wt_candidates = re.findall(r'\b(\d+(?:\.\d+)?)\b', chunk)
+                wt_val = None
+                for cand in wt_candidates:
+                    if cand not in trk_number and (not amt_match or cand not in amt_match.group(1)):
+                        try:
+                            val = float(cand)
+                            if 0.1 <= val <= 50000:
+                                wt_val = val
+                                break
+                        except ValueError:
+                            pass
+            else:
+                wt_val = float(wt_match.group(1))
+
+            # Extract description by removing tracking number, weight, amounts, and headers
+            desc_chunk = chunk
+            desc_chunk = desc_chunk.replace(trk_number, '', 1)
+            if amt_match:
+                desc_chunk = desc_chunk.replace(amt_match.group(0), '')
+            if wt_match:
+                desc_chunk = desc_chunk.replace(wt_match.group(0), '')
+            elif wt_val is not None:
+                desc_chunk = re.sub(rf'\b{wt_val}\b', '', desc_chunk)
+            
+            # Clean up leftover keywords/symbols
+            desc_chunk = re.sub(r'\b(?:kg|lbs|g|USD|EUR|Amount|Charged|Weight|Description|Item|Rate)\b', '', desc_chunk, flags=re.IGNORECASE)
+            desc_chunk = re.sub(r'[\$\|\:\_\=\#]', ' ', desc_chunk)
+            desc_chunk = ' '.join(desc_chunk.split()).strip(" -:\t\r\n")
+            
+            if not desc_chunk:
+                desc_chunk = "Freight Shipment"
+            
+            items.append({
+                "tracking_number": trk_number,
+                "description": desc_chunk,
+                "weight_kg": wt_val,
+                "charged_amount": amt_val if amt_val is not None else 0.0
+            })
+
+    if items:
+        return items
+
+    # -------------------------------------------------------------
+    # Strategy 3: Tabular line rows (for single line table formats)
+    # -------------------------------------------------------------
     lines = text.splitlines()
     for line in lines:
         line_clean = line.strip()
         if not line_clean or line_clean.startswith("#") or line_clean.startswith("---") or line_clean.startswith("==="):
             continue
-        if re.search(r'^(?:TOTAL|SUBTOTAL|INVOICE|DATE|CARRIER|CLIENT|SHIPMENT DETAILS)', line_clean, re.IGNORECASE):
+        if re.search(r'^(?:TOTAL|SUBTOTAL|INVOICE|DATE|CARRIER|CLIENT|SHIPMENT DETAILS|TRACKING)', line_clean, re.IGNORECASE):
             continue
-
-        # Line pattern: Tracking (optional) ... Description ... Weight ... Amount
-        line_match = re.search(r'(?:([A-Za-z0-9\-]{5,})\s+)?(.+?)\s+([\d\.]+)\s*(?:kg|lbs|g)?\s+\$?\s*([\d\.,]+)', line_clean, re.IGNORECASE)
-        if line_match:
-            trk = line_match.group(1).strip() if line_match.group(1) else None
-            desc = line_match.group(2).strip()
-            wt = float(line_match.group(3))
-            amt = float(line_match.group(4).replace(',', ''))
-
-            # Avoid matching headers
-            if desc.lower() not in ["description", "item", "details", "shipment details"]:
-                items.append({
-                    "tracking_number": trk,
-                    "description": desc,
-                    "weight_kg": wt,
-                    "charged_amount": amt,
-                })
+        
+        amt_match = re.search(r'\$\s*([\d\.,]+)', line_clean)
+        wt_match = re.search(r'([\d\.]+)\s*(?:kg|lbs|g)?', line_clean, re.IGNORECASE)
+        trk_match = re.search(r'\b([A-Za-z0-9\-]{5,})\b', line_clean)
+        
+        if amt_match:
+            amt_val = float(amt_match.group(1).replace(',', ''))
+            wt_val = float(wt_match.group(1)) if wt_match else None
+            trk_val = trk_match.group(1) if trk_match else None
+            
+            desc = line_clean
+            if trk_val:
+                desc = desc.replace(trk_val, '')
+            desc = desc.replace(amt_match.group(0), '')
+            if wt_match:
+                desc = desc.replace(wt_match.group(0), '')
+            desc = re.sub(r'[\|\$\:\_]', ' ', desc).strip()
+            desc = ' '.join(desc.split()).strip(" -:\t\r\n") or "Freight Shipment"
+            
+            items.append({
+                "tracking_number": trk_val,
+                "description": desc,
+                "weight_kg": wt_val,
+                "charged_amount": amt_val
+            })
 
     return items
 
