@@ -216,7 +216,9 @@ class GroqClient(BaseLLMClient):
                         {
                             "role": "system",
                             "content": (
-                                "You are a freight invoice auditor. Extract all line items from the invoice text. "
+                                "You are an expert freight invoice auditor. Extract all line items from the invoice text. "
+                                "The text may be a table where column values or descriptions wrap across multiple lines. "
+                                "Associate each tracking number with its full description, weight in kg, and charged amount. "
                                 "Return ONLY a JSON object with key 'line_items' (array of objects). "
                                 "Each object must have: tracking_number (string|null), description (string|null), "
                                 "weight_kg (float|null), charged_amount (float|null). "
@@ -261,7 +263,8 @@ class GroqClient(BaseLLMClient):
                         {
                             "role": "system",
                             "content": (
-                                "You are a freight invoice auditor. Extract every line item from the invoice image. "
+                                "You are an expert freight invoice auditor. Extract every line item from the invoice image. "
+                                "Carefully read all rows in any tables, handling multi-line wrapped text rows. "
                                 "Return ONLY a JSON object with key 'line_items' (array of objects). "
                                 "Each object must have: tracking_number (string|null), description (string|null), "
                                 "weight_kg (float|null), charged_amount (float|null). "
@@ -312,7 +315,8 @@ class GeminiClient(BaseLLMClient):
             model="gemini-2.5-flash",
             contents=[
                 (
-                    "Extract every line item from this freight invoice text. "
+                    "You are an expert freight invoice auditor. Extract every line item from this invoice text. "
+                    "The text may contain wrapped lines or tables where descriptions and numbers span multiple lines. "
                     "Return ONLY a JSON object with key 'line_items' (array of objects). "
                     "Each object must have: tracking_number (string or null), description (string or null), "
                     "weight_kg (float or null), charged_amount (float or null). "
@@ -344,7 +348,8 @@ class GeminiClient(BaseLLMClient):
             contents=[
                 self.types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
                 (
-                    "Extract every line item from this freight invoice page. "
+                    "You are an expert freight invoice auditor. Extract every line item from this invoice page. "
+                    "Carefully read all rows in any tables, handling multi-line wrapped text rows. "
                     "Return ONLY a JSON object with key 'line_items' (array of objects). "
                     "Each object must have: tracking_number (string or null), description (string or null), "
                     "weight_kg (float or null), charged_amount (float or null). "
