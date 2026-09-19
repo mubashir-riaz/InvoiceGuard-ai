@@ -170,7 +170,7 @@ const FileUpload = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Client Selector */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
             <User className="w-3.5 h-3.5 text-slate-400" /> Client
           </label>
           <select
@@ -192,7 +192,7 @@ const FileUpload = ({
 
         {/* Contract Selector */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
             <Briefcase className="w-3.5 h-3.5 text-slate-400" /> Active Contract
           </label>
           <select
@@ -220,7 +220,7 @@ const FileUpload = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
             <Hash className="w-3 h-3 text-slate-400" /> Invoice Number
           </label>
           <input
@@ -233,7 +233,7 @@ const FileUpload = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center justify-between">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center justify-between">
             <span className="flex items-center gap-1">
               <Tag className="w-3 h-3 text-slate-400" /> Carrier Name
             </span>
@@ -253,7 +253,7 @@ const FileUpload = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
             <Calendar className="w-3 h-3 text-slate-400" /> Invoice Date
           </label>
           <input
@@ -266,7 +266,7 @@ const FileUpload = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
             <DollarSign className="w-3 h-3 text-slate-400" /> Total Amount ($)
           </label>
           <input
