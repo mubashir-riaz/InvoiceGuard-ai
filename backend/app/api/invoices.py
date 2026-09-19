@@ -25,7 +25,7 @@ async def upload_invoice(
     client_id: int = Form(...),
     contract_id: Optional[int] = Form(None),
     invoice_number: str = Form(...),
-    carrier: str = Form(...),
+    carrier: Optional[str] = Form(None),
     invoice_date: date = Form(...),
     total_amount: float = Form(...),
     file: UploadFile = File(...),
@@ -44,6 +44,9 @@ async def upload_invoice(
     if not contract or contract.client_id != client_id:
         raise HTTPException(status_code=400, detail="Valid contract associated with this client was not found.")
 
+    # Auto-detect carrier from contract if not explicitly specified
+    final_carrier = (carrier.strip() if carrier and carrier.strip() else None) or contract.carrier
+
     # Save file to disk
     file_path = os.path.join(UPLOAD_DIR, f"{invoice_number}_{file.filename}")
     with open(file_path, "wb") as buffer:
@@ -53,7 +56,7 @@ async def upload_invoice(
         client_id=client_id,
         contract_id=contract_id,
         invoice_number=invoice_number,
-        carrier=carrier,
+        carrier=final_carrier,
         invoice_date=invoice_date,
         total_amount=total_amount,
         file_path=file_path,
