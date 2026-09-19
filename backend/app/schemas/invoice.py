@@ -9,7 +9,7 @@ class InvoiceBase(BaseModel):
     client_id: int
     contract_id: Optional[int] = None
     invoice_number: str
-    carrier: str
+    carrier: Optional[str] = None
     invoice_date: date
     total_amount: float
 
@@ -18,6 +18,7 @@ class InvoiceCreate(InvoiceBase):
 
 class InvoiceResponse(InvoiceBase):
     id: int
+    carrier: str
     status: InvoiceStatus
     file_path: Optional[str] = None
 
