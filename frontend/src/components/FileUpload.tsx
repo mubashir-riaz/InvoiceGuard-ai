@@ -42,15 +42,30 @@ const FileUpload = ({
     }
   }, [clients, selectedClientId]);
 
-  // Auto-select first contract for the selected client if available
+  // Auto-select first contract for the selected client if available and auto-detect carrier
   const filteredContracts = contracts?.filter((c: any) => c.client_id === Number(selectedClientId)) || [];
   useEffect(() => {
     if (filteredContracts.length > 0) {
-      setSelectedContractId(String(filteredContracts[0].id));
+      const firstContract = filteredContracts[0];
+      setSelectedContractId(String(firstContract.id));
+      if (firstContract.carrier) {
+        setCarrier(firstContract.carrier);
+      }
     } else {
       setSelectedContractId("");
+      setCarrier("");
     }
   }, [selectedClientId, contracts]);
+
+  // Auto-detect carrier whenever selected contract changes
+  useEffect(() => {
+    if (selectedContractId && contracts) {
+      const contract = contracts.find((c: any) => String(c.id) === String(selectedContractId));
+      if (contract?.carrier) {
+        setCarrier(contract.carrier);
+      }
+    }
+  }, [selectedContractId, contracts]);
 
   const handleDrag = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -183,7 +198,14 @@ const FileUpload = ({
           <select
             className="w-full border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-50/50 hover:bg-white transition-colors p-3 rounded-xl text-sm font-semibold text-slate-800 outline-none"
             value={selectedContractId}
-            onChange={(e) => setSelectedContractId(e.target.value)}
+            onChange={(e) => {
+              const newContractId = e.target.value;
+              setSelectedContractId(newContractId);
+              const foundContract = contracts?.find((c: any) => String(c.id) === String(newContractId));
+              if (foundContract?.carrier) {
+                setCarrier(foundContract.carrier);
+              }
+            }}
             required
           >
             {filteredContracts.map((c: any) => (
@@ -211,8 +233,15 @@ const FileUpload = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
-            <Tag className="w-3 h-3 text-slate-400" /> Carrier Name
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1">
+              <Tag className="w-3 h-3 text-slate-400" /> Carrier Name
+            </span>
+            {carrier && (
+              <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
+                Auto-detected from contract
+              </span>
+            )}
           </label>
           <input
             className="w-full border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-50/50 hover:bg-white transition-colors p-3 rounded-xl text-sm font-medium text-slate-800 placeholder-slate-400 outline-none"
