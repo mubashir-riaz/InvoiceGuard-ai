@@ -113,6 +113,32 @@ class TestExtractLineItemsFromText(unittest.TestCase):
         self.assertEqual(items[0]["weight_kg"], 320.5)
         self.assertEqual(items[0]["charged_amount"], 2450.00)
 
+    def test_ignore_zero_charge_and_payment_terms(self):
+        sample_text = """
+        INVOICE #: INV-CONTAINER-2026
+        Bill of Lading: BOL-987654
+        Payment Terms: Net 30 Days
+
+        CONTAINER # | DESCRIPTION | WEIGHT | CHARGE
+        MAEU2298471 | Payment Terms Net 30 Days | 30 kg | $0.00
+        MSKU1234567 | 20ft Container - Electronics | 18,000 kg | $3,200.00
+        BOL-987654  | Bill of Lading Reference | 0 kg | $0.00
+        MSKU7654321 | 40ft Container - Apparel | 22,500 kg | $4,850.00
+        TOTAL: $8,050.00
+        """
+        items = extract_line_items_from_text(sample_text)
+        self.assertEqual(len(items), 2)
+
+        self.assertEqual(items[0]["tracking_number"], "MSKU1234567")
+        self.assertEqual(items[0]["description"], "20ft Container - Electronics")
+        self.assertEqual(items[0]["weight_kg"], 18000.0)
+        self.assertEqual(items[0]["charged_amount"], 3200.00)
+
+        self.assertEqual(items[1]["tracking_number"], "MSKU7654321")
+        self.assertEqual(items[1]["description"], "40ft Container - Apparel")
+        self.assertEqual(items[1]["weight_kg"], 22500.0)
+        self.assertEqual(items[1]["charged_amount"], 4850.00)
+
     def test_empty_text_returns_empty_list(self):
         self.assertEqual(extract_line_items_from_text(""), [])
         self.assertEqual(extract_line_items_from_text("   "), [])
