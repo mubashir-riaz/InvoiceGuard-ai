@@ -38,6 +38,8 @@ def extract_line_items_from_text(text: str) -> list[dict]:
     # -------------------------------------------------------------
     # Strategy 1: Explicit Item / Shipment / Package block format
     # -------------------------------------------------------------
+    # Strategy 1: Explicit Item / Shipment / Package block format
+    # -------------------------------------------------------------
     blocks = re.split(
         r'(?:(?:^|\n)\s*(?:Item\s+\d+|SHIPMENT\s+\d+|Package\s+\d+|Shipment\s+Item\s+\d+)[:\.\s\-]*)',
         text,
@@ -49,18 +51,18 @@ def extract_line_items_from_text(text: str) -> list[dict]:
 
             trk_match = re.search(r'Tracking\s*(?:#|Number|No|Num)?\s*[:\s#]*([A-Za-z0-9\-]+)', b, re.IGNORECASE)
             desc_match = re.search(r'Description\s*[:\s]*([^\n\r]+)', b, re.IGNORECASE)
-            wt_match = re.search(r'Weight\s*[:\s]*([\d\.]+)\s*(?:kg|lbs|g)?', b, re.IGNORECASE)
+            wt_match = re.search(r'Weight\s*[:\s]*([\d\.,]+)\s*(?:kg|lbs|g)?', b, re.IGNORECASE)
             amt_match = re.search(r'(?:Charged\s*Amount|Total\s*Charged|Amount\s*Charged|Charged|Amount|Rate|Cost|Price|Total)\s*[:\s#\-]*\$?\s*([\d\.,]+)', b, re.IGNORECASE)
             if not amt_match:
                 amt_match = re.search(r'\$\s*([\d\.,]+)', b)
 
             if trk_match or amt_match or desc_match:
-                wt_val = float(wt_match.group(1)) if wt_match else None
+                wt_val = float(wt_match.group(1).replace(',', '')) if wt_match else None
                 amt_val = float(amt_match.group(1).replace(',', '')) if amt_match else None
                 trk_val = trk_match.group(1).strip() if trk_match else None
                 desc_val = desc_match.group(1).strip() if desc_match else "Freight Shipment"
 
-                if trk_val or amt_val is not None:
+                if amt_val is not None and amt_val > 0:
                     items.append({
                         "tracking_number": trk_val,
                         "description": desc_val,
@@ -73,13 +75,13 @@ def extract_line_items_from_text(text: str) -> list[dict]:
 
     # -------------------------------------------------------------
     # Strategy 2: Multi-line / Tracking Number boundary segmentation
-    # Finds lines/tokens starting with tracking numbers (e.g. DH..., FX..., 1Z..., TRK..., etc.)
+    # Finds lines/tokens starting with tracking numbers (e.g. DH..., FX..., 1Z..., TRK..., MSKU..., BOL-..., etc.)
     # and extracts all content up to the next tracking number or TOTAL line.
     # -------------------------------------------------------------
     body_text = re.split(r'(?:TOTAL\s+(?:CHARGED|DUE|AMOUNT)|TOTAL\s*:\s*\$|SUBTOTAL)', text, flags=re.IGNORECASE)[0]
 
-    # Pattern identifying tracking numbers at token/line starts (5 to 30 alphanumeric characters with digits)
-    tracking_pattern = r'([A-Za-z]{1,4}\d{5,}[A-Za-z0-9\-]*|1Z[A-Za-z0-9]{16}|TRK[A-Za-z0-9\-]+)'
+    # Pattern identifying tracking numbers / container numbers at token/line starts
+    tracking_pattern = r'(\b[A-Za-z]{1,4}\d{5,}[A-Za-z0-9\-]*|\b1Z[A-Za-z0-9]{16}|\bTRK[A-Za-z0-9\-]+|\b[A-Za-z]{2,5}\-\d{4,})'
     
     tracking_matches = list(re.finditer(tracking_pattern, body_text))
     
@@ -98,23 +100,27 @@ def extract_line_items_from_text(text: str) -> list[dict]:
             
             amt_val = float(amt_match.group(1).replace(',', '')) if amt_match else None
             
-            # Find weight in chunk (e.g. 250.0 kg, 85.5 kg, 3.0 kg, 250.0\nkg, or 250.0)
-            wt_match = re.search(r'([\d\.]+)\s*(?:kg|lbs|g)\b', chunk, re.IGNORECASE)
+            # Skip if amount is 0, negative, or not found (e.g. payment terms / reference headers)
+            if amt_val is None or amt_val <= 0:
+                continue
+
+            # Find weight in chunk (e.g. 250.0 kg, 18,000 kg, 85.5 kg, 3.0 kg, 250.0\nkg, or 250.0)
+            wt_match = re.search(r'([\d\.,]+)\s*(?:kg|lbs|g)\b', chunk, re.IGNORECASE)
             if not wt_match:
                 # Look for weight before amount
-                wt_candidates = re.findall(r'\b(\d+(?:\.\d+)?)\b', chunk)
+                wt_candidates = re.findall(r'\b(\d+(?:[,\.]\d+)?)\b', chunk)
                 wt_val = None
                 for cand in wt_candidates:
                     if cand not in trk_number and (not amt_match or cand not in amt_match.group(1)):
                         try:
-                            val = float(cand)
-                            if 0.1 <= val <= 50000:
+                            val = float(cand.replace(',', ''))
+                            if 0.1 <= val <= 100000:
                                 wt_val = val
                                 break
                         except ValueError:
                             pass
             else:
-                wt_val = float(wt_match.group(1))
+                wt_val = float(wt_match.group(1).replace(',', ''))
 
             # Extract description by removing tracking number, weight, amounts, and headers
             desc_chunk = chunk
@@ -134,11 +140,15 @@ def extract_line_items_from_text(text: str) -> list[dict]:
             if not desc_chunk:
                 desc_chunk = "Freight Shipment"
             
+            # Ignore payment terms or document headers
+            if desc_chunk.lower() in ["payment terms", "bill of lading", "bol reference", "invoice"]:
+                continue
+
             items.append({
                 "tracking_number": trk_number,
                 "description": desc_chunk,
                 "weight_kg": wt_val,
-                "charged_amount": amt_val if amt_val is not None else 0.0
+                "charged_amount": amt_val
             })
 
     if items:
@@ -156,12 +166,15 @@ def extract_line_items_from_text(text: str) -> list[dict]:
             continue
         
         amt_match = re.search(r'\$\s*([\d\.,]+)', line_clean)
-        wt_match = re.search(r'([\d\.]+)\s*(?:kg|lbs|g)?', line_clean, re.IGNORECASE)
+        wt_match = re.search(r'([\d\.,]+)\s*(?:kg|lbs|g)?', line_clean, re.IGNORECASE)
         trk_match = re.search(r'\b([A-Za-z0-9\-]{5,})\b', line_clean)
         
         if amt_match:
             amt_val = float(amt_match.group(1).replace(',', ''))
-            wt_val = float(wt_match.group(1)) if wt_match else None
+            if amt_val <= 0:
+                continue
+
+            wt_val = float(wt_match.group(1).replace(',', '')) if wt_match else None
             trk_val = trk_match.group(1) if trk_match else None
             
             desc = line_clean
@@ -173,6 +186,9 @@ def extract_line_items_from_text(text: str) -> list[dict]:
             desc = re.sub(r'[\|\$\:\_]', ' ', desc).strip()
             desc = ' '.join(desc.split()).strip(" -:\t\r\n") or "Freight Shipment"
             
+            if desc.lower() in ["payment terms", "bill of lading", "bol reference", "invoice"]:
+                continue
+
             items.append({
                 "tracking_number": trk_val,
                 "description": desc,
@@ -379,7 +395,7 @@ class GeminiClient(BaseLLMClient):
         return json.loads(raw_text.strip())
 
 
-# 3. ARQ Task - Main Extraction
+# 3. ARQ Task – Main Extraction
 
 async def extract_invoice_lines(ctx, invoice_id: int):
     """
@@ -387,8 +403,9 @@ async def extract_invoice_lines(ctx, invoice_id: int):
     1. Load invoice from DB.
     2. Extract digital text from PDF (or convert to image for scanned docs).
     3. Call Text/Vision LLM or deterministic parser.
-    4. Store real extracted line items in DB.
-    5. Update status to EXTRACTED (or ERROR if unextractable).
+    4. Validate and filter items (charge > 0, remove headers/summary rows).
+    5. Store real extracted line items in DB.
+    6. Update status to EXTRACTED (or ERROR if unextractable).
     """
     provider = (LLM_PROVIDER or "groq").lower()
     llm = None
@@ -462,14 +479,8 @@ async def extract_invoice_lines(ctx, invoice_id: int):
             except Exception as vision_err:
                 print(f"Vision LLM extraction failed for invoice {invoice_id}: {vision_err}")
 
-        # 5. Check if items were extracted
-        if not all_line_items:
-            # Mark invoice as ERROR if nothing could be extracted
-            invoice.status = InvoiceStatus.ERROR
-            await db.commit()
-            return {"status": "error", "message": "No line items could be extracted from the invoice PDF"}
-
-        # 6. Store extracted real line items in DB
+        # 5. Filter out non-chargeable items, headers, payment terms, and 0-charge rows
+        valid_items = []
         for item in all_line_items:
             trk = item.get("tracking_number")
             desc = item.get("description")
@@ -483,25 +494,56 @@ async def extract_invoice_lines(ctx, invoice_id: int):
                 except (ValueError, TypeError):
                     wt = None
 
+            amt_val = None
             if amt is not None:
                 try:
-                    amt = float(amt)
+                    amt_val = float(amt)
                 except (ValueError, TypeError):
-                    amt = 0.0
+                    amt_val = None
 
+            # Skip items with no positive charge (headers, payment terms, $0 document refs)
+            if amt_val is None or amt_val <= 0:
+                continue
+
+            desc_str = str(desc).strip() if desc else "Freight Shipment"
+            
+            # Skip obvious header/summary names
+            if desc_str.lower() in [
+                "description", "item", "details", "shipment details", 
+                "total", "subtotal", "total charged", "payment terms", 
+                "bill of lading", "bol", "carrier", "client", "invoice"
+            ]:
+                continue
+
+            valid_items.append({
+                "tracking_number": str(trk).strip() if trk else None,
+                "description": desc_str,
+                "weight_kg": wt,
+                "charged_amount": amt_val,
+            })
+
+        # 6. Check if valid items were extracted
+        if not valid_items:
+            # Mark invoice as ERROR if nothing could be extracted
+            invoice.status = InvoiceStatus.ERROR
+            await db.commit()
+            return {"status": "error", "message": "No chargeable line items (amount > 0) could be extracted from the invoice PDF"}
+
+        # 7. Store extracted real line items in DB
+        for item in valid_items:
             line = LineItem(
                 invoice_id=invoice.id,
-                tracking_number=str(trk).strip() if trk else None,
-                description=str(desc).strip() if desc else "Freight Shipment",
-                weight_kg=wt,
-                charged_amount=amt,
+                tracking_number=item["tracking_number"],
+                description=item["description"],
+                weight_kg=item["weight_kg"],
+                charged_amount=item["charged_amount"],
             )
             db.add(line)
 
-        # 7. Mark as EXTRACTED
+        # 8. Mark as EXTRACTED
         invoice.status = InvoiceStatus.EXTRACTED
         await db.commit()
-        return {"status": "success", "line_items_count": len(all_line_items)}
+        return {"status": "success", "line_items_count": len(valid_items)}
 
     except Exception as e:
         # Mark as ERROR and re-raise
