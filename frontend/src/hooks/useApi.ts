@@ -406,3 +406,10 @@ export const useContracts = () =>
     queryKey: ["contracts"],
     queryFn: () => api.get("/contracts/").then((r) => r.data),
   });
+
+export const useContract = (contractId?: number) =>
+  useQuery<any>({
+    queryKey: ["contract", contractId],
+    queryFn: () => api.get(`/contracts/${contractId}`).then((r) => r.data),
+    enabled: !!contractId,
+  });
