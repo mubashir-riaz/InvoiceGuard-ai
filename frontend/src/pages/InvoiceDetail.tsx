@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   useInvoice,
+  useContract,
   useLineItems,
   useDiscrepancies,
   useDisputes,
@@ -22,6 +23,7 @@ import useConfirm from "../hooks/useConfirm";
 import { 
   ArrowLeft, 
   FileText, 
+  FileSignature,
   AlertTriangle, 
   Mail, 
   Send, 
@@ -62,6 +64,7 @@ const InvoiceDetail = () => {
   const [isMobilePdfOpen, setIsMobilePdfOpen] = useState(true);
 
   const { data: invoice, isLoading: isInvoiceLoading } = useInvoice(invoiceId);
+  const { data: contract } = useContract(invoice?.contract_id);
   const invoiceStatus = invoice?.status?.toLowerCase();
   const isProcessing = invoiceStatus === "processing";
 
@@ -245,6 +248,63 @@ const InvoiceDetail = () => {
           <span className="font-bold text-slate-700 mt-0.5 block">Client ID #{invoice?.client_id}</span>
         </div>
       </div>
+
+      {/* Contract Tariff Quick Summary */}
+      {contract ? (
+        <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/80 px-3.5 py-2.5 rounded-xl border border-slate-200/60">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <FileSignature className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block leading-none">
+                Contract #{contract.id} ({contract.carrier})
+              </span>
+              <span className="text-xs font-bold text-slate-700 mt-0.5 block leading-none">
+                Fixed Contract Rates
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {contract.rate_details?.base_rate !== undefined && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Base Rate</span>
+                <span className="text-xs font-extrabold text-indigo-600">
+                  ${Number(contract.rate_details.base_rate).toFixed(2)}
+                </span>
+              </div>
+            )}
+            {contract.rate_details?.per_kg !== undefined && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Per Kg</span>
+                <span className="text-xs font-extrabold text-indigo-600">
+                  ${Number(contract.rate_details.per_kg).toFixed(2)}/kg
+                </span>
+              </div>
+            )}
+            {Object.entries(contract.rate_details || {})
+              .filter(([k]) => k !== "base_rate" && k !== "per_kg")
+              .map(([k, v]) => (
+                <div key={k} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">{k.replace(/_/g, " ")}</span>
+                  <span className="text-xs font-extrabold text-indigo-600">
+                    {typeof v === "number" ? `$${v.toFixed(2)}` : String(v)}
+                  </span>
+                </div>
+              ))}
+            {contract.effective_start && contract.effective_end && (
+              <span className="text-[11px] font-semibold text-slate-400 px-1 hidden md:inline">
+                Valid: {contract.effective_start} to {contract.effective_end}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : invoice?.contract_id ? (
+        <div className="pt-3 border-t border-slate-50 flex items-center gap-2 text-xs font-semibold text-slate-400">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-400" />
+          <span>Loading contracted rates...</span>
+        </div>
+      ) : null}
 
       {/* Action Banner inside Overview */}
       {(invoiceStatus === "uploaded" || 
