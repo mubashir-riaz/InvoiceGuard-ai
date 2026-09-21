@@ -6,6 +6,8 @@ import {
   useUpdateContract,
   useDeleteContract,
 } from "../hooks/useApi";
+import useConfirm from "../hooks/useConfirm";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { 
   Plus, 
   Edit2, 
@@ -28,6 +30,7 @@ const Contracts = () => {
   const createContract = useCreateContract();
   const updateContract = useUpdateContract();
   const deleteContract = useDeleteContract();
+  const { confirm, dialogProps } = useConfirm();
 
   // Modal and Form States
   const [showModal, setShowModal] = useState(false);
@@ -231,12 +234,19 @@ const Contracts = () => {
                   </button>
                   
                   <button
-                    onClick={() => {
-                      if (confirm(`Delete contract ID #${c.id} for ${c.carrier}?`)) {
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: "Delete Contract",
+                        message: `Are you sure you want to delete contract #${c.id} for ${c.carrier}? This will affect future invoice audits for this carrier and cannot be undone.`,
+                        confirmText: "Delete Contract",
+                        isDestructive: true,
+                      });
+                      if (ok) {
                         deleteContract.mutate(c.id);
                       }
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs transition-colors"
+                    disabled={deleteContract.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs transition-colors disabled:opacity-50"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Delete</span>
@@ -403,6 +413,9 @@ const Contracts = () => {
           </form>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

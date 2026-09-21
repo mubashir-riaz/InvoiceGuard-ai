@@ -3,12 +3,17 @@ import { useNavigate } from "react-router-dom";
 import {
   useInvoices,
   useClients,
+  useContracts,
   useProcessInvoice,
   useAuditInvoice,
+  useDeleteInvoice,
+  useDisputeAnalytics,
 } from "../hooks/useApi";
 import DataTable from "../components/DataTable";
 import StatusBadge from "../components/StatusBadge";
 import FileUpload from "../components/FileUpload";
+import ConfirmDialog from "../components/ConfirmDialog";
+import useConfirm from "../hooks/useConfirm";
 import { 
   Plus, 
   Search, 
@@ -19,17 +24,45 @@ import {
   TrendingUp, 
   FileText, 
   AlertTriangle,
+  AlertCircle,
   FileCheck,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  X,
+  ArrowRight,
+  Clock,
+  DollarSign
 } from "lucide-react";
 
 const Dashboard = () => {
   const { data: invoices, isLoading, refetch } = useInvoices();
   const { data: clients } = useClients();
+  const { data: contracts } = useContracts();
+  const disputeAnalytics = useDisputeAnalytics();
   const navigate = useNavigate();
   const process = useProcessInvoice();
   const audit = useAuditInvoice();
+  const deleteInvoice = useDeleteInvoice();
+  const { confirm, dialogProps } = useConfirm();
   const [showUpload, setShowUpload] = useState(false);
+
+  // Prerequisites check for uploading invoices
+  const hasClients = Boolean(clients && clients.length > 0);
+  const hasContracts = Boolean(contracts && contracts.length > 0);
+  const canUpload = hasClients && hasContracts;
+
+  const uploadDisabledTooltip = useMemo(() => {
+    if (!hasClients && !hasContracts) {
+      return "Create contract and client first";
+    }
+    if (!hasClients) {
+      return "Create client first";
+    }
+    if (!hasContracts) {
+      return "Create contract first";
+    }
+    return "";
+  }, [hasClients, hasContracts]);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -160,6 +193,27 @@ const Dashboard = () => {
             >
               <Eye className="w-4 h-4" />
             </button>
+
+            <button
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Delete Invoice",
+                  message: `Are you sure you want to delete invoice #${row.invoice_number} (${row.carrier})? All associated line items, audit discrepancies, and dispute drafts will be permanently removed. This action cannot be undone.`,
+                  confirmText: "Delete Invoice",
+                  isDestructive: true,
+                });
+                if (ok) {
+                  deleteInvoice.mutate(row.id, {
+                    onSuccess: () => refetch(),
+                  });
+                }
+              }}
+              disabled={deleteInvoice.isPending}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
+              title="Delete Invoice"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         );
       },
@@ -175,14 +229,64 @@ const Dashboard = () => {
           <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Audit Dashboard</h2>
           <p className="text-sm text-slate-500 mt-1">Audit carrier freight bills, check discrepancy details, and file claims.</p>
         </div>
-        <button
-          onClick={() => setShowUpload(true)}
-          className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition-all self-start sm:self-auto"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Upload Invoice</span>
-        </button>
+        {/* Upload Invoice Action Button with Contract & Client Pre-requisite Guard */}
+        <div className="relative group self-start sm:self-auto inline-block">
+          <button
+            type="button"
+            onClick={() => {
+              if (canUpload) {
+                setShowUpload(true);
+              }
+            }}
+            disabled={!canUpload}
+            aria-disabled={!canUpload}
+            className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              canUpload
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 hover:shadow-indigo-200 cursor-pointer"
+                : "bg-indigo-600/70 text-white/90 shadow-none cursor-not-allowed"
+            }`}
+          >
+            <Plus className="w-5 h-5" />
+            <span>Upload Invoice</span>
+          </button>
+
+          {!canUpload && (
+            <div className="absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 bottom-full mb-2 hidden group-hover:flex flex-col items-center z-30 pointer-events-none">
+              <div className="bg-slate-900 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap flex items-center gap-1.5 border border-slate-700/60 animate-fade-in">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>{uploadDisabledTooltip}</span>
+              </div>
+              <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1 border-r border-b border-slate-700/60" />
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Awaiting Follow-up Alert Banner */}
+      {disputeAnalytics.pendingFollowupsCount > 0 && (
+        <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 flex-shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-extrabold text-amber-900">
+                Awaiting Carrier Follow-up ({disputeAnalytics.pendingFollowupsCount} claim{disputeAnalytics.pendingFollowupsCount === 1 ? "" : "s"})
+              </h4>
+              <p className="text-xs text-amber-700 font-medium mt-0.5">
+                Target carrier response deadline reached. Review and follow up or escalate these claims in Claims Center.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate("/disputes")}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto flex-shrink-0"
+          >
+            <span>Review Claims</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -229,6 +333,69 @@ const Dashboard = () => {
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Disputes Lodged</span>
             <span className="text-2xl font-extrabold text-slate-800 mt-1 block">{stats.disputedCount}</span>
           </div>
+        </div>
+      </div>
+
+      {/* Dispute Recovery & Lifecycle Widgets */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Pending Disputes Widget */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+          <div className="flex items-center gap-4">
+            <div className="p-3.5 rounded-xl bg-amber-50 text-amber-600">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Pending Disputes</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-extrabold text-slate-800">{disputeAnalytics.pendingCount}</span>
+                <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                  {disputeAnalytics.pendingCount > 0 ? `Oldest: ${disputeAnalytics.oldestPendingDays} days` : "All clear"}
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium block mt-0.5">
+                Claims currently in draft, sent, or under carrier review
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate("/disputes")}
+            className="hidden sm:flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline p-2"
+          >
+            <span>Claims</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Analytics Hook-in: Recovered Revenue & Win Rate */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+          <div className="flex items-center gap-4">
+            <div className="p-3.5 rounded-xl bg-emerald-50 text-emerald-600">
+              <DollarSign className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Recovered Capital</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-extrabold text-emerald-600">
+                  ${disputeAnalytics.totalRecovered.toFixed(2)}
+                </span>
+                <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60">
+                  {disputeAnalytics.successRate}% win rate
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium block mt-0.5">
+                {disputeAnalytics.totalAccepted} of {disputeAnalytics.totalSent} submitted claims successfully recovered
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate("/disputes")}
+            className="hidden sm:flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-800 hover:underline p-2"
+          >
+            <span>Details</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
@@ -301,6 +468,9 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

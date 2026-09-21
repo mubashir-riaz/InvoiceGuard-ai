@@ -15,5 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the whole worker code (tasks, config, etc.)
 COPY . .
 
+ENV PYTHONPATH=/app
+
 # Default command
-CMD ["arq", "worker_app.main.WorkerSettings"]
+CMD ["arq", "main.WorkerSettings"]

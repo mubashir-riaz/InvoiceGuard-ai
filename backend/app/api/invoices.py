@@ -2,12 +2,15 @@
 import os
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from typing import List, Optional
 from datetime import date
 from app.core.database import get_db
 from app.models.invoice import Invoice, InvoiceStatus
+from app.models.client import Client
+from app.models.contract import Contract
 from app.schemas.invoice import InvoiceCreate, InvoiceResponse
 from app.services.queue import enqueue_task
 from app.core.config import settings  
@@ -22,12 +25,28 @@ async def upload_invoice(
     client_id: int = Form(...),
     contract_id: Optional[int] = Form(None),
     invoice_number: str = Form(...),
-    carrier: str = Form(...),
+    carrier: Optional[str] = Form(None),
     invoice_date: date = Form(...),
     total_amount: float = Form(...),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
+    # Validate client existence
+    client = await db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=400, detail="Client not found. Please create a client first.")
+
+    # Validate contract existence
+    if not contract_id:
+        raise HTTPException(status_code=400, detail="A contract is required to upload an invoice.")
+    
+    contract = await db.get(Contract, contract_id)
+    if not contract or contract.client_id != client_id:
+        raise HTTPException(status_code=400, detail="Valid contract associated with this client was not found.")
+
+    # Auto-detect carrier from contract if not explicitly specified
+    final_carrier = (carrier.strip() if carrier and carrier.strip() else None) or contract.carrier
+
     # Save file to disk
     file_path = os.path.join(UPLOAD_DIR, f"{invoice_number}_{file.filename}")
     with open(file_path, "wb") as buffer:
@@ -37,7 +56,7 @@ async def upload_invoice(
         client_id=client_id,
         contract_id=contract_id,
         invoice_number=invoice_number,
-        carrier=carrier,
+        carrier=final_carrier,
         invoice_date=invoice_date,
         total_amount=total_amount,
         file_path=file_path,
@@ -60,6 +79,26 @@ async def get_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Invoice not found")
     return invoice
 
+@router.get("/{invoice_id}/pdf")
+async def get_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Serve the uploaded invoice PDF file for in-browser preview or download.
+    """
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    if not invoice.file_path or not os.path.exists(invoice.file_path):
+        raise HTTPException(status_code=404, detail="Invoice PDF file not found on server")
+
+    filename = os.path.basename(invoice.file_path)
+    return FileResponse(
+        path=invoice.file_path,
+        media_type="application/pdf",
+        filename=filename,
+        content_disposition_type="inline"
+    )
+
 from app.models.line_item import LineItem
 from app.schemas.line_item import LineItemResponse
 
@@ -76,9 +115,23 @@ async def delete_invoice(invoice_id: int, db: AsyncSession = Depends(get_db)):
     invoice = await db.get(Invoice, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
-    # Optionally delete the file from disk
+
+    from app.models.line_item import LineItem
+    from app.models.discrepancy import Discrepancy
+    from app.models.dispute import Dispute
+
+    # Clean up associated records before deleting invoice to prevent FK constraint violations
+    await db.execute(delete(Dispute).where(Dispute.invoice_id == invoice_id))
+    await db.execute(delete(Discrepancy).where(Discrepancy.invoice_id == invoice_id))
+    await db.execute(delete(LineItem).where(LineItem.invoice_id == invoice_id))
+
+    # Delete physical file from disk if present
     if invoice.file_path and os.path.exists(invoice.file_path):
-        os.remove(invoice.file_path)
+        try:
+            os.remove(invoice.file_path)
+        except OSError:
+            pass
+
     await db.delete(invoice)
     await db.commit()
     return None
@@ -148,3 +201,105 @@ async def generate_dispute(invoice_id: int, db: AsyncSession = Depends(get_db)):
 
     await enqueue_task("generate_dispute", invoice_id)
     return {"message": "Dispute generation started", "invoice_id": invoice_id}
+
+import csv
+import io
+from fastapi.responses import Response
+
+@router.get("/{invoice_id}/export")
+async def export_invoice_audit_csv(invoice_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Export line items and audit discrepancy results for an invoice as a CSV file.
+    """
+    invoice = await db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    from app.models.line_item import LineItem
+    from app.models.discrepancy import Discrepancy
+
+    # Fetch line items
+    items_result = await db.execute(select(LineItem).where(LineItem.invoice_id == invoice_id))
+    line_items = items_result.scalars().all()
+
+    # Fetch discrepancies
+    disc_result = await db.execute(select(Discrepancy).where(Discrepancy.invoice_id == invoice_id))
+    discrepancies = disc_result.scalars().all()
+    disc_map = {d.line_item_id: d for d in discrepancies if d.line_item_id is not None}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write summary metadata rows
+    writer.writerow(["# INVOICE AUDIT REPORT"])
+    writer.writerow(["Invoice Number", invoice.invoice_number])
+    writer.writerow(["Carrier", invoice.carrier])
+    writer.writerow(["Invoice Date", str(invoice.invoice_date)])
+    writer.writerow(["Total Billed Amount", f"${invoice.total_amount:.2f}"])
+    status_label = invoice.status.value if hasattr(invoice.status, "value") else str(invoice.status)
+    writer.writerow(["Audit Status", status_label])
+    writer.writerow([])
+
+    # Write line items header
+    writer.writerow([
+        "Tracking Number",
+        "Description",
+        "Weight (kg)",
+        "Billed Amount ($)",
+        "Expected Amount ($)",
+        "Difference ($)",
+        "Discrepancy Reason",
+        "Audit Result"
+    ])
+
+    total_expected = 0.0
+    total_difference = 0.0
+
+    for item in line_items:
+        disc = disc_map.get(item.id)
+        if disc:
+            expected = disc.expected_amount
+            difference = disc.difference
+            reason = disc.reason or "Rate Mismatch"
+            audit_result = "OVERCHARGE" if difference > 0 else "UNDERCHARGE"
+        else:
+            expected = item.charged_amount or 0.0
+            difference = 0.0
+            reason = "None"
+            audit_result = "PASSED"
+
+        total_expected += expected
+        total_difference += difference
+
+        writer.writerow([
+            item.tracking_number or "N/A",
+            item.description or "",
+            f"{item.weight_kg:.2f}" if item.weight_kg is not None else "0.00",
+            f"{item.charged_amount:.2f}" if item.charged_amount is not None else "0.00",
+            f"{expected:.2f}",
+            f"{difference:.2f}",
+            reason,
+            audit_result
+        ])
+
+    # Summary row
+    writer.writerow([])
+    writer.writerow([
+        "TOTALS",
+        f"{len(line_items)} items",
+        "",
+        f"${invoice.total_amount:.2f}",
+        f"${total_expected:.2f}",
+        f"${total_difference:.2f}",
+        f"{len(discrepancies)} Discrepancies",
+        "CLAIMABLE" if total_difference > 0 else "BALANCED"
+    ])
+
+    csv_content = output.getvalue()
+    filename = f"audit_invoice_{invoice.invoice_number}.csv"
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )

@@ -6,7 +6,6 @@ import {
   FileSignature, 
   Truck, 
   X,
-  Menu,
   ShieldCheck
 } from "lucide-react";
 
@@ -36,21 +35,21 @@ const Navbar = ({ isOpen, onClose }: SidebarProps) => {
 
   return (
     <>
-      {/* Mobile Overlay */}
-      {isOpen && (
-        <div 
-          onClick={onClose}
-          className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm lg:hidden transition-opacity duration-300"
-        />
-      )}
+      {/* Backdrop Overlay - Floats over entire screen when open without moving page content */}
+      <div 
+        onClick={onClose}
+        className={`fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${
+          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      />
 
-      {/* Sidebar Container */}
+      {/* Floating Overlay Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col w-64 bg-white border-r border-slate-100 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col w-72 bg-white border-r border-slate-100 shadow-2xl transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Logo/Brand Header */}
+        {/* Logo/Brand Header with Close Toggle Button */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <Link to="/" className="flex items-center gap-2.5" onClick={onClose}>
             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-md shadow-indigo-100">
@@ -61,9 +60,12 @@ const Navbar = ({ isOpen, onClose }: SidebarProps) => {
               <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mt-0.5 block">AI Auditor</span>
             </div>
           </Link>
+
           <button 
             onClick={onClose}
-            className="lg:hidden p-1 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-600"
+            className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            title="Close menu"
+            aria-label="Close menu"
           >
             <X className="w-5 h-5" />
           </button>
