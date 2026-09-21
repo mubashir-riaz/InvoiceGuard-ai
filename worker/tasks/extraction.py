@@ -206,7 +206,8 @@ EXTRACTION_SYSTEM_PROMPT = """You are an expert freight invoice auditor. Extract
 CRITICAL EXTRACTION RULES:
 1. EXTRACT ONLY actual chargeable line items — rows with a real container/package/tracking number AND a charge amount greater than zero.
 2. The invoice may contain tables where column values or descriptions wrap across multiple lines. Carefully associate each tracking number with its full description, weight in kg, and charged amount.
-3. DO NOT extract:
+3. Weight values may contain commas (e.g. "18,000 kg", "24,500 kg"). Always strip commas and convert to a number: 18000, not 18 or 0. 24500, not 500 or 24.
+4. DO NOT extract:
    - Invoice headers (invoice #, date, bill of lading / BOL, payment terms, client/carrier names)
    - Column headers ("CONTAINER #", "TRACKING #", "DESCRIPTION", "WEIGHT", "CHARGE", "RATE")
    - Summary rows (subtotal, total, grand total, container count, balance due)
@@ -225,7 +226,7 @@ Reason: Invoice metadata / reference, not a chargeable shipment.
 
 EXAMPLE — EXTRACT:
 "MSKU1234567 | 20ft Container - Electronics | 18,000 kg | $3,200.00"
-Reason: Real container, real charge.
+Reason: Real container, real charge. weight_kg is 18000.0 (comma stripped).
 
 EXAMPLE — EXTRACT:
 "DH456789123 | Industrial Machinery - 2 crates | 250.0 kg | $1,875.00"
@@ -403,7 +404,7 @@ async def extract_invoice_lines(ctx, invoice_id: int):
     1. Load invoice from DB.
     2. Extract digital text from PDF (or convert to image for scanned docs).
     3. Call Text/Vision LLM or deterministic parser.
-    4. Validate and filter items (charge > 0, remove headers/summary rows).
+    4. Validate and defensively filter items (charge > 0, sanitize weights, remove headers/junk).
     5. Store real extracted line items in DB.
     6. Update status to EXTRACTED (or ERROR if unextractable).
     """
