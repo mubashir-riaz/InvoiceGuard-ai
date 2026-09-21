@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   useInvoice,
@@ -65,10 +65,20 @@ const InvoiceDetail = () => {
   const invoiceStatus = invoice?.status?.toLowerCase();
   const isProcessing = invoiceStatus === "processing";
 
-  const { data: lineItems } = useLineItems(invoiceId, {
+  const {
+    data: lineItems,
+    isLoading: isLineItemsLoading,
+    isFetching: isLineItemsFetching,
+    refetch: refetchLineItems,
+  } = useLineItems(invoiceId, {
     refetchInterval: isProcessing ? 2000 : false,
   });
-  const { data: discrepancies } = useDiscrepancies(invoiceId, {
+  const {
+    data: discrepancies,
+    isLoading: isDiscrepanciesLoading,
+    isFetching: isDiscrepanciesFetching,
+    refetch: refetchDiscrepancies,
+  } = useDiscrepancies(invoiceId, {
     refetchInterval: isProcessing ? 2000 : false,
   });
   const { data: disputes } = useDisputes(invoiceId, {
@@ -77,6 +87,14 @@ const InvoiceDetail = () => {
       return (generate.isSuccess && list.length === 0) ? 2000 : false;
     }
   });
+
+  // Automatically trigger refetch when invoice transitions to extracted or audited
+  useEffect(() => {
+    if (invoiceStatus === "extracted" || invoiceStatus === "audited") {
+      refetchLineItems();
+      refetchDiscrepancies();
+    }
+  }, [invoiceStatus, refetchLineItems, refetchDiscrepancies]);
 
   // Inline email editor state
   const [editingDisputeId, setEditingDisputeId] = useState<number | null>(null);
@@ -239,7 +257,11 @@ const InvoiceDetail = () => {
             <div>
               <h4 className="text-xs font-extrabold text-slate-800">
                 {invoiceStatus === "uploaded" && "AI Extraction Pending"}
-                {invoiceStatus === "extracted" && (lineItems && lineItems.length > 0 ? "AI Audit Pending" : "AI Extraction Required")}
+                {invoiceStatus === "extracted" && (
+                  (isLineItemsLoading || (isLineItemsFetching && (!lineItems || lineItems.length === 0)))
+                    ? "Loading Extracted Items..."
+                    : (lineItems && lineItems.length > 0 ? "AI Audit Pending" : "AI Extraction Required")
+                )}
                 {invoiceStatus === "audited" && (!lineItems || lineItems.length === 0) && "AI Extraction Required"}
                 {invoiceStatus === "error" && "AI Extraction Failed"}
                 {invoiceStatus === "processing" && (
@@ -248,7 +270,11 @@ const InvoiceDetail = () => {
               </h4>
               <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
                 {invoiceStatus === "uploaded" && "Run AI extraction to retrieve line items and details."}
-                {invoiceStatus === "extracted" && (lineItems && lineItems.length > 0 ? "Audit this invoice's rates against contracted tariffs." : "No line items extracted. Re-run AI extraction.")}
+                {invoiceStatus === "extracted" && (
+                  (isLineItemsLoading || (isLineItemsFetching && (!lineItems || lineItems.length === 0)))
+                    ? "Synchronizing line items..."
+                    : (lineItems && lineItems.length > 0 ? "Audit this invoice's rates against contracted tariffs." : "No line items extracted. Re-run AI extraction.")
+                )}
                 {invoiceStatus === "audited" && (!lineItems || lineItems.length === 0) && "No line items extracted. Re-run AI extraction."}
                 {invoiceStatus === "error" && "Something went wrong. Please check details or retry."}
                 {invoiceStatus === "processing" && (
@@ -352,15 +378,19 @@ const InvoiceDetail = () => {
             <span>Run Extract AI</span>
           </button>
         </div>
-      ) : invoiceStatus === "processing" && (!lineItems || lineItems.length === 0) ? (
+      ) : (invoiceStatus === "processing" || isLineItemsLoading || (isLineItemsFetching && (!lineItems || lineItems.length === 0))) ? (
         <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200/80 space-y-4">
           <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm animate-pulse">
             <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
           </div>
           <div className="max-w-md space-y-1">
-            <h4 className="text-sm font-bold text-slate-800">Extracting Line Items...</h4>
+            <h4 className="text-sm font-bold text-slate-800">
+              {invoiceStatus === "processing" ? "Extracting Line Items..." : "Loading Extracted Items..."}
+            </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-              AI is parsing the invoice PDF and extracting shipment tracking numbers, descriptions, weights, and charged rates.
+              {invoiceStatus === "processing"
+                ? "AI is parsing the invoice PDF and extracting shipment tracking numbers, descriptions, weights, and charged rates."
+                : "Retrieving the newly extracted shipment items from the database..."}
             </p>
           </div>
           <div className="w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden">
