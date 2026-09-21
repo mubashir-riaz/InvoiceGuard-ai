@@ -242,6 +242,122 @@ Each object must have:
 Do NOT include any other text or explanation."""
 
 
+def sanitize_weight(val) -> float | None:
+    """
+    Sanitize weight value from various formats:
+    - 18000 / 18000.0 -> 18000.0
+    - "18,000" / "18,000 kg" / "18,000.50 lbs" -> 18000.0 / 18000.5
+    - "24,500" -> 24500.0 (prevents misreading comma-separated thousands as 0 or 500)
+    """
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val) if val >= 0 else None
+    
+    val_str = str(val).strip()
+    if not val_str:
+        return None
+    
+    # Remove unit words like kg, lbs, g, tons
+    val_str = re.sub(r'[a-zA-Z]+', '', val_str).strip()
+    # Remove commas
+    val_str = val_str.replace(',', '').strip()
+    
+    try:
+        num = float(val_str)
+        return num if num >= 0 else None
+    except (ValueError, TypeError):
+        return None
+
+
+def sanitize_amount(val) -> float | None:
+    """
+    Sanitize charge amount value:
+    - 3200 / 3200.0 -> 3200.0
+    - "$3,200.00" / "3,200.00" -> 3200.0
+    """
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val) if val > 0 else None
+    
+    val_str = str(val).strip()
+    if not val_str:
+        return None
+    
+    val_str = re.sub(r'[\$\sUSD|EUR|GBP]+', '', val_str, flags=re.IGNORECASE)
+    val_str = val_str.replace(',', '').strip()
+    
+    try:
+        num = float(val_str)
+        return num if num > 0 else None
+    except (ValueError, TypeError):
+        return None
+
+
+def is_junk_or_header_row(item: dict) -> bool:
+    """
+    Defensive check to identify non-chargeable metadata, headers, terms, or summaries.
+    """
+    desc = str(item.get("description") or "").strip().lower()
+    trk = str(item.get("tracking_number") or "").strip().lower()
+    
+    if not desc and not trk:
+        return True
+    
+    header_keywords = [
+        "payment terms", "net 30", "net 60", "net 15", "due upon receipt",
+        "bill of lading", "bol reference", "b/l no", "bol no", "bol #",
+        "invoice #", "invoice no", "invoice date", "invoice total",
+        "subtotal", "total charged", "total due", "grand total", "balance due",
+        "container count", "total containers", "total packages", "total weight",
+        "description", "tracking #", "container #", "unit price", "rate per kg",
+        "remit to", "bank details", "wire instructions"
+    ]
+    
+    for kw in header_keywords:
+        if desc == kw or desc.startswith(kw + ":") or desc.startswith(kw + " -"):
+            return True
+        if trk == kw or trk.startswith(kw + ":"):
+            return True
+            
+    return False
+
+
+def sanitize_and_filter_line_items(raw_items: list[dict]) -> list[dict]:
+    """
+    Defensive post-processing filter for extracted line items (LLM and parser outputs).
+    Enforces positive charge (> 0), sanitizes comma weights, and eliminates metadata junk.
+    """
+    valid_items = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        
+        amt = sanitize_amount(item.get("charged_amount"))
+        if amt is None or amt <= 0:
+            continue
+        
+        if is_junk_or_header_row(item):
+            continue
+        
+        wt = sanitize_weight(item.get("weight_kg"))
+        trk = item.get("tracking_number")
+        desc = item.get("description")
+        
+        trk_clean = str(trk).strip() if trk else None
+        desc_clean = str(desc).strip() if desc else "Freight Shipment"
+        
+        valid_items.append({
+            "tracking_number": trk_clean,
+            "description": desc_clean,
+            "weight_kg": wt,
+            "charged_amount": amt,
+        })
+        
+    return valid_items
+
+
 class BaseLLMClient:
     """Abstract base for LLM providers."""
     def extract_from_text(self, text: str) -> dict:
@@ -480,48 +596,8 @@ async def extract_invoice_lines(ctx, invoice_id: int):
             except Exception as vision_err:
                 print(f"Vision LLM extraction failed for invoice {invoice_id}: {vision_err}")
 
-        # 5. Filter out non-chargeable items, headers, payment terms, and 0-charge rows
-        valid_items = []
-        for item in all_line_items:
-            trk = item.get("tracking_number")
-            desc = item.get("description")
-            wt = item.get("weight_kg")
-            amt = item.get("charged_amount")
-
-            # Clean and sanitize types
-            if wt is not None:
-                try:
-                    wt = float(wt)
-                except (ValueError, TypeError):
-                    wt = None
-
-            amt_val = None
-            if amt is not None:
-                try:
-                    amt_val = float(amt)
-                except (ValueError, TypeError):
-                    amt_val = None
-
-            # Skip items with no positive charge (headers, payment terms, $0 document refs)
-            if amt_val is None or amt_val <= 0:
-                continue
-
-            desc_str = str(desc).strip() if desc else "Freight Shipment"
-            
-            # Skip obvious header/summary names
-            if desc_str.lower() in [
-                "description", "item", "details", "shipment details", 
-                "total", "subtotal", "total charged", "payment terms", 
-                "bill of lading", "bol", "carrier", "client", "invoice"
-            ]:
-                continue
-
-            valid_items.append({
-                "tracking_number": str(trk).strip() if trk else None,
-                "description": desc_str,
-                "weight_kg": wt,
-                "charged_amount": amt_val,
-            })
+        # 5. Defensive post-processing filter (sanitizes weights, enforces charge > 0, removes junk)
+        valid_items = sanitize_and_filter_line_items(all_line_items)
 
         # 6. Check if valid items were extracted
         if not valid_items:
