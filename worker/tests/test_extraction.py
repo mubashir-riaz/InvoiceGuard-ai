@@ -139,6 +139,40 @@ class TestExtractLineItemsFromText(unittest.TestCase):
         self.assertEqual(items[1]["weight_kg"], 22500.0)
         self.assertEqual(items[1]["charged_amount"], 4850.00)
 
+    def test_sanitize_weight_and_amount(self):
+        from tasks.extraction import sanitize_weight, sanitize_amount, sanitize_and_filter_line_items
+        
+        # Test weight comma stripping & sanity
+        self.assertEqual(sanitize_weight("18,000 kg"), 18000.0)
+        self.assertEqual(sanitize_weight("24,500"), 24500.0)
+        self.assertEqual(sanitize_weight("250.5 kg"), 250.5)
+        self.assertEqual(sanitize_weight(18000), 18000.0)
+        self.assertIsNone(sanitize_weight(None))
+        self.assertIsNone(sanitize_weight(""))
+
+        # Test amount sanitization
+        self.assertEqual(sanitize_amount("$3,200.00"), 3200.0)
+        self.assertEqual(sanitize_amount("1,875.00"), 1875.0)
+        self.assertIsNone(sanitize_amount("$0.00"))
+        self.assertIsNone(sanitize_amount(0))
+
+        # Test defensive post-processing filter on raw LLM JSON output
+        raw_llm_items = [
+            {"tracking_number": "MAEU2298471", "description": "Payment Terms Net 30 Days", "weight_kg": "30 kg", "charged_amount": "$0.00"},
+            {"tracking_number": "MSKU1234567", "description": "20ft Container - Electronics", "weight_kg": "18,000 kg", "charged_amount": "$3,200.00"},
+            {"tracking_number": "BOL-987654", "description": "Bill of Lading Reference", "weight_kg": "0 kg", "charged_amount": 0},
+            {"tracking_number": "MSKU7654321", "description": "40ft Container - Apparel", "weight_kg": "24,500.5 kg", "charged_amount": "4,850.00"},
+        ]
+        filtered = sanitize_and_filter_line_items(raw_llm_items)
+        self.assertEqual(len(filtered), 2)
+        self.assertEqual(filtered[0]["tracking_number"], "MSKU1234567")
+        self.assertEqual(filtered[0]["weight_kg"], 18000.0)
+        self.assertEqual(filtered[0]["charged_amount"], 3200.0)
+
+        self.assertEqual(filtered[1]["tracking_number"], "MSKU7654321")
+        self.assertEqual(filtered[1]["weight_kg"], 24500.5)
+        self.assertEqual(filtered[1]["charged_amount"], 4850.0)
+
     def test_empty_text_returns_empty_list(self):
         self.assertEqual(extract_line_items_from_text(""), [])
         self.assertEqual(extract_line_items_from_text("   "), [])
